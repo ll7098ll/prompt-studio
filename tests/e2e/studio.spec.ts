@@ -126,13 +126,13 @@ test("share snapshot opens in a separate browser context without the original st
   await viewer.goto(link);
   await expect(
     viewer
-      .frameLocator("iframe")
+      .frameLocator('iframe[title="디자인 미리보기"]')
       .getByRole("heading", { name: /좋은 아이디어가/ }),
   ).toBeVisible();
   await expect(
     viewer.getByRole("button", { name: "내 브라우저에 복사" }),
   ).toBeVisible();
-  await expect(viewer.frameLocator("iframe").locator(".ui-edit")).toHaveCount(
+  await expect(viewer.frameLocator('iframe[title="디자인 미리보기"]').locator(".ui-edit")).toHaveCount(
     0,
   );
   await viewer.evaluate(() => {
@@ -150,7 +150,7 @@ test("share snapshot opens in a separate browser context without the original st
   }, new URL(link).hash);
   await expect(
     viewer
-      .frameLocator("iframe")
+      .frameLocator('iframe[title="디자인 미리보기"]')
       .getByRole("heading", { name: /좋은 아이디어가/ }),
   ).toBeVisible();
   await viewer.getByRole("button", { name: "내 브라우저에 복사" }).click();
@@ -231,7 +231,7 @@ test("one malformed stored project does not hide the healthy library", async ({
   await page.evaluate(async () => {
     localStorage.setItem("prompt-studio:recovery:broken", "{broken recovery");
     await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open("prompt-studio-projects-v2", 2);
+      const request = indexedDB.open("prompt-studio-projects-v2");
       request.onsuccess = () => {
         const db = request.result;
         const tx = db.transaction("projects", "readwrite");
@@ -271,7 +271,7 @@ test("actual iframe viewport drives responsive layout and component interactions
     .filter({ hasText: "브랜드 랜딩" })
     .click();
   await page.getByRole("button", { name: "모바일", exact: true }).click();
-  const frame = page.frameLocator("iframe");
+  const frame = page.frameLocator('iframe[title="디자인 미리보기"]');
   await expect(frame.locator('.ui-node[data-component="grid"]')).toHaveCSS(
     "grid-template-columns",
     /\d+(?:\.\d+)?px/,
@@ -300,7 +300,7 @@ test("adding and moving nested elements preserves the page and supports deletion
     .click();
   await page.getByRole("button", { name: "카드 추가", exact: true }).click();
   await page.getByRole("button", { name: "버튼 추가", exact: true }).click();
-  const frame = page.frameLocator("iframe");
+  const frame = page.frameLocator('iframe[title="디자인 미리보기"]');
   await expect(
     frame.locator('[data-component="card"] [data-component="button"]'),
   ).toHaveCount(1);

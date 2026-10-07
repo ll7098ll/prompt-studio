@@ -1,0 +1,242 @@
+[
+  {
+    "name": "button",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/button.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/button.tsx"
+    ]
+  },
+  {
+    "name": "input",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/input.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/input.tsx"
+    ]
+  },
+  {
+    "name": "card",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/card.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/card.tsx"
+    ]
+  },
+  {
+    "name": "tabs",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/tabs.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/tabs.tsx"
+    ]
+  },
+  {
+    "name": "dialog",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/dialog.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/dialog.tsx"
+    ]
+  },
+  {
+    "name": "select",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/select.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/select.tsx"
+    ]
+  },
+  {
+    "name": "popover",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/popover.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/popover.tsx"
+    ]
+  },
+  {
+    "name": "command",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/command.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/command.tsx"
+    ]
+  },
+  {
+    "name": "sheet",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/sheet.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/sheet.tsx"
+    ]
+  },
+  {
+    "name": "sidebar",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/sidebar.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/sidebar.tsx"
+    ]
+  },
+  {
+    "name": "table",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/table.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/table.tsx"
+    ]
+  },
+  {
+    "name": "calendar",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/calendar.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/calendar.tsx"
+    ]
+  },
+  {
+    "name": "label",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/label.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/label.tsx"
+    ]
+  },
+  {
+    "name": "separator",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/separator.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/separator.tsx"
+    ]
+  },
+  {
+    "name": "tooltip",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/tooltip.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/tooltip.tsx"
+    ]
+  },
+  {
+    "name": "skeleton",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/skeleton.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/skeleton.tsx"
+    ]
+  },
+  {
+    "name": "checkbox",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/checkbox.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/checkbox.tsx"
+    ]
+  },
+  {
+    "name": "dropdown-menu",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/dropdown-menu.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/dropdown-menu.tsx"
+    ]
+  },
+  {
+    "name": "context-menu",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/context-menu.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/context-menu.tsx"
+    ]
+  },
+  {
+    "name": "menubar",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/menubar.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/menubar.tsx"
+    ]
+  },
+  {
+    "name": "navigation-menu",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/navigation-menu.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/navigation-menu.tsx"
+    ]
+  },
+  {
+    "name": "hover-card",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/hover-card.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/hover-card.tsx"
+    ]
+  },
+  {
+    "name": "alert-dialog",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/alert-dialog.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/alert-dialog.tsx"
+    ]
+  },
+  {
+    "name": "input-otp",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/input-otp.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/input-otp.tsx"
+    ]
+  },
+  {
+    "name": "carousel",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/carousel.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/carousel.tsx"
+    ]
+  },
+  {
+    "name": "resizable",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/resizable.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/resizable.tsx"
+    ]
+  },
+  {
+    "name": "scroll-area",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/scroll-area.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/scroll-area.tsx"
+    ]
+  },
+  {
+    "name": "toggle",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/toggle.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/toggle.tsx"
+    ]
+  },
+  {
+    "name": "toggle-group",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/toggle-group.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/toggle-group.tsx"
+    ]
+  },
+  {
+    "name": "drawer",
+    "url": "https://ui.shadcn.com/r/styles/new-york-v4/drawer.json",
+    "fetchedAt": "2026-10-06",
+    "files": [
+      "registry/new-york-v4/ui/drawer.tsx"
+    ]
+  }
+]

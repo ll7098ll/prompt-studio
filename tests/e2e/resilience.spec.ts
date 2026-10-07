@@ -12,6 +12,13 @@ test("keyboard panel navigation and dialog focus return work without a mouse", a
   await components.focus();
   await page.keyboard.press("End");
   await expect(
+    page.getByRole("tab", { name: "자산", exact: true }),
+  ).toBeFocused();
+  await expect(
+    page.getByRole("tab", { name: "자산", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("ArrowLeft");
+  await expect(
     page.getByRole("tab", { name: "테마", exact: true }),
   ).toBeFocused();
   await expect(

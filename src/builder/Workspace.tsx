@@ -29,6 +29,8 @@ import Modal from "./Modal";
 import TemplatePreview from "./TemplatePreview";
 import TemplateThumbnail from "./TemplateThumbnail";
 import type { TemplateInfo } from "./template-recipes";
+import { readProjectArchive } from "./project-archive";
+import { putAssets } from "./asset-repository";
 
 export default function Workspace() {
   const [records, setRecords] = useState<StoredProject[]>([]);
@@ -196,16 +198,21 @@ export default function Workspace() {
       </header>
       <input
         type="file"
-        accept="application/json,.json"
+        accept="application/json,.json,application/zip,.zip"
         hidden
         ref={input}
         onChange={async (e) => {
           const file = e.target.files?.[0];
           if (!file) return;
           try {
-            if (file.size > 3_000_000)
-              throw new Error("프로젝트 파일은 3MB 이하여야 합니다.");
-            await create("blank", parseProjectText(await file.text()));
+            if (file.name.toLowerCase().endsWith(".zip")) {
+              const bundle = await readProjectArchive(file);
+              await putAssets(bundle.assets);
+              await create("blank", bundle.project);
+            } else {
+              if (file.size > 3_000_000) throw new Error("프로젝트 파일은 3MB 이하여야 합니다.");
+              await create("blank", parseProjectText(await file.text()));
+            }
           } catch (err) {
             setError(
               err instanceof Error

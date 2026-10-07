@@ -1,5 +1,6 @@
 import { DEFINITIONS } from "./catalog";
 import { blankProject, createNode, type Project } from "./model";
+import { populateRecipe } from "./component-recipes";
 
 const explanations: Record<string, [string, string]> = {
   section: ["페이지 구역", "화면을 여러 구역으로 나누기"],
@@ -46,7 +47,7 @@ export function componentExample(id: string, theme: Project["theme"]): Project {
   project.name = componentHelp(id).label;
   project.theme = structuredClone(theme);
   const root = project.nodes[project.pages[0].rootId];
-  root.layout.padding = ["navbar", "hero", "sidebar", "cta", "footer"].includes(
+  root.layout.padding = id.startsWith('scene-') || ["navbar", "hero", "sidebar", "cta", "footer"].includes(
     id,
   )
     ? 0
@@ -54,6 +55,7 @@ export function componentExample(id: string, theme: Project["theme"]): Project {
   const node = createNode(id);
   root.children.push(node.id);
   project.nodes[node.id] = node;
+  if (populateRecipe(project, node)) return project;
   if (DEFINITIONS[id].container) {
     const children =
       id === "grid"
@@ -61,6 +63,13 @@ export function componentExample(id: string, theme: Project["theme"]): Project {
         : ["heading", "text", "button"];
     for (const kind of children) {
       const child = createNode(kind);
+      if (node.layout.mode === "free")
+        Object.assign(child.layout, {
+          x: 24,
+          y: 24 + node.children.length * 100,
+          widthMode: "fixed",
+          width: 280,
+        });
       node.children.push(child.id);
       project.nodes[child.id] = child;
     }

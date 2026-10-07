@@ -1,6 +1,14 @@
 "use client";
+import { replaceRichRun } from "./rich-text";
 
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useMemo,
+  useRef,
+  useState,
+  useLayoutEffect,
+  useEffect,
+  type KeyboardEvent,
+} from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -41,13 +49,46 @@ import { CATALOG, CATEGORIES, DEFINITIONS, type Definition } from "./catalog";
 import {
   createNode,
   descendants,
-  duplicateNode,
   editProject,
   isLocked,
-  moveNode,
   parentId,
-  removeNode,
+  resolvedLayout,
+  type Project,
+  type Layout,
 } from "./model";
+import DesignPanel, { type DesignAction } from "./DesignPanel";
+import {
+  alignBoxes,
+  applyBoxes,
+  convertLayout,
+  copyNodes,
+  deleteNodes,
+  editableRoots,
+  groupNodes,
+  pasteNodes,
+  patchLayouts,
+  reorderSelection,
+  selectionRoots,
+  ungroupNode,
+  writeLayout,
+  type ClipboardNodes,
+} from "./design-commands";
+import {
+  boxInParent,
+  elementSize,
+  measureChildren,
+  unionBox,
+} from "./geometry";
+import { detachComposite } from "./detach-composite";
+import { relocateNode } from "./design-dom";
+import PartsPanel, { type PartSelection } from "./PartsPanel";
+import { populateRecipe } from "./component-recipes";
+import {
+  resolvedPart,
+  partElement,
+  partPath,
+  boundTextChange,
+} from "./component-parts";
 import { appendPage, TEMPLATES } from "./templates";
 import TemplateThumbnail from "./TemplateThumbnail";
 import type { StoredProject } from "./repository";
@@ -59,7 +100,15 @@ import Inspector, { ThemePanel } from "./Inspector";
 import Modal from "./Modal";
 import Checkpoints from "./Checkpoints";
 import NumberInput from "./NumberInput";
-import ComponentThumbnail from "./ComponentThumbnail";
+import LiveThumbnail from "./LiveThumbnail";
+import AppearancePanel from "./AppearancePanel";
+import AssetPanel from "./AssetPanel";
+import { assetRef } from "./asset-model";
+import { exportProjectArchive } from "./project-archive";
+import { DESIGN_FAMILIES, MOTIONS, type DesignFamily } from "./visual-presets";
+import type { DropTarget } from "./drop-target";
+import { changeBlockStructure } from "./block-variants";
+import { beginLibraryDrag } from "./library-drag";
 import { componentHelp, componentExample } from "./library";
 import {
   VIEWPORT_WIDTH,
@@ -98,11 +147,27 @@ export default function Editor({
     save,
     saveCopy,
   } = useEditor(record);
+  const latestProject = useRef(project);
+  useLayoutEffect(() => {
+    latestProject.current = project;
+  }, [project]);
   const [pageId, setPageId] = useState(project.pages[0].id);
   const page = project.pages.find((p) => p.id === pageId) ?? project.pages[0];
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selection, setSelection] = useState<string[]>([]);
+  const [partSelection, setPartSelection] = useState<PartSelection>(null);
+  const selected = selection.filter((id) => project.nodes[id]).at(-1) ?? null;
+  const setSelected = (id: string | null) => {
+    setSelection(id ? [id] : []);
+    setPartSelection(null);
+  };
+  const canvasDocument = useRef<Document | null>(null);
+  const [surfaceDocument, setSurfaceDocument] = useState<Document | null>(null);
+  const clipboard = useRef<ClipboardNodes | null>(null);
+  const nudgeGroup = useRef("");
+  const [tool, setTool] = useState<"select" | "hand">("select");
+  const [layoutPreview, setLayoutPreview] = useState<Project | null>(null);
   const selectedNode = selected ? project.nodes[selected] : undefined;
-  const [tab, setTab] = useState<"library" | "layers" | "theme">("library");
+  const [tab, setTab] = useState<"library" | "layers" | "theme" | "assets">("library");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("전체");
   const [canvasWidth, setCanvasWidth] = useState<number>(
@@ -123,17 +188,81 @@ export default function Editor({
   const [message, setMessage] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const dragging = useRef<string | null>(null);
+  const libraryDrag = useRef<(() => void) | null>(null),
+    skipLibraryClick = useRef(false);
+  useEffect(() => () => libraryDrag.current?.(), []);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [showInspector, setShowInspector] = useState(false);
   const [libraryPreview, setLibraryPreview] = useState<string | null>(null);
+  const [libraryMode, setLibraryMode] = useState("all");
+  const [libraryFamily, setLibraryFamily] = useState<DesignFamily | "legacy">(
+    "legacy",
+  );
+  const [librarySource, setLibrarySource] = useState("all");
+  const [tileLimit, setTileLimit] = useState(24);
+  const [replay, setReplay] = useState(0);
+  const [libraryWidth, setLibraryWidth] = useState(768);
+  const [libraryState, setLibraryState] = useState("default");
+  const [structurePreview, setStructurePreview] = useState<Project | null>(
+    null,
+  );
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("studio-favorites") ?? "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [recent, setRecent] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("studio-recent") ?? "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [myBlocks, setMyBlocks] = useState<
+    { id: string; name: string; data: ClipboardNodes }[]
+  >(() => {
+    try {
+      return JSON.parse(localStorage.getItem("studio-my-blocks") ?? "[]");
+    } catch {
+      return [];
+    }
+  });
   const libraryExample = useMemo(
     () =>
-      libraryPreview ? componentExample(libraryPreview, project.theme) : null,
-    [libraryPreview, project.theme],
+      libraryPreview
+        ? (() => {
+            const p = componentExample(libraryPreview, project.theme);
+            const state = DEFINITIONS[libraryPreview].fields.find(
+              (field) => field.key === "state",
+            );
+            if (state?.options?.includes(libraryState))
+              p.nodes[p.nodes[p.pages[0].rootId].children[0]].props.state =
+                libraryState;
+            p.nodes[p.nodes[p.pages[0].rootId].children[0]].appearance = {
+              family: libraryFamily,
+            };
+            return p;
+          })()
+        : null,
+    [libraryPreview, project.theme, libraryFamily, libraryState],
   );
   const filtered = CATALOG.filter(
     (d) =>
       d.id !== "page" &&
+      (libraryMode === "all" ||
+        (libraryMode === "basic" &&
+          ["기본 요소", "구조"].includes(d.category)) ||
+        (libraryMode === "components" &&
+          !["기본 요소", "구조", "블록", "장면"].includes(d.category)) ||
+        (libraryMode === "blocks" && d.category === "블록") ||
+        (libraryMode === "scenes" && d.category === "장면") ||
+        (libraryMode === "favorites" && favorites.includes(d.id)) ||
+        (libraryMode === "recent" && recent.includes(d.id))) &&
+      (librarySource === "all" ||
+        (librarySource === "shadcn" && d.source?.includes("shadcn")) ||
+        (librarySource === "studio" && !d.source?.includes("shadcn"))) &&
       (category === "전체" || d.category === category) &&
       `${d.name} ${d.id} ${d.description} ${componentHelp(d.id).label} ${componentHelp(d.id).summary}`
         .toLowerCase()
@@ -146,8 +275,8 @@ export default function Editor({
   );
   const safe = (operation: () => void) => {
     try {
-      operation();
       setMessage("");
+      operation();
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "작업을 완료하지 못했습니다.",
@@ -158,53 +287,430 @@ export default function Editor({
     setSelected(id);
     setShowInspector(true);
   };
-  function add(def: Definition) {
+  function add(def: Definition, drop?: DropTarget, props?: Definition["defaults"]) {
+    safe(() => {
+      const target =
+        drop?.parent ??
+        (selectedNode && DEFINITIONS[selectedNode.component].container
+          ? selectedNode.id
+          : selected
+            ? (parentId(project, selected) ?? page.rootId)
+            : page.rootId);
+      if (isLocked(project, target))
+        throw new Error("잠금을 해제하거나 다른 영역을 선택하세요.");
+      const node = createNode(def.id);
+      if (props) Object.assign(node.props, props);
+      node.appearance = {
+        family: libraryFamily,
+        ...(libraryFamily === "legacy" ? {} : { renderer: "shadcn" as const }),
+      };
+      if (resolvedLayout(project.nodes[target], viewport).mode === "free") {
+        const parentElement = canvasDocument.current?.getElementById(target);
+        const size = parentElement
+          ? elementSize(parentElement)
+          : { width: 800, height: 480 };
+        node.layout = {
+          ...node.layout,
+          x: drop?.x ?? 32 + (project.nodes[target].children.length % 8) * 24,
+          y: drop?.y ?? 32 + (project.nodes[target].children.length % 8) * 24,
+          widthMode: "fixed",
+          width: def.id === "heading" ? 360 : 240,
+          basisWidth: Math.max(1, size.width),
+          basisHeight: Math.max(1, size.height),
+        };
+      }
+      commit(
+        editProject(project, (next) => {
+          next.nodes[node.id] = node;
+          populateRecipe(next, node);
+          next.nodes[target].children.splice(
+            drop?.index ?? next.nodes[target].children.length,
+            0,
+            node.id,
+          );
+        }),
+      );
+      select(node.id);
+      const list = [def.id, ...recent.filter((id) => id !== def.id)].slice(
+        0,
+        24,
+      );
+      setRecent(list);
+      try {
+        localStorage.setItem("studio-recent", JSON.stringify(list));
+      } catch {}
+    });
+  }
+  function saveBlock() {
+    safe(() => {
+      if (!selection.length) return;
+      const data = copyNodes(project, selectionRoots(project, selection));
+      const list = [
+        {
+          id: crypto.randomUUID(),
+          name: selectedNode?.name ?? "내 블록",
+          data,
+        },
+        ...myBlocks,
+      ].slice(0, 40);
+      localStorage.setItem("studio-my-blocks", JSON.stringify(list));
+      setMyBlocks(list);
+      setMessage(
+        "내 블록에 저장했습니다. 독립된 사본으로 다시 추가할 수 있습니다.",
+      );
+    });
+  }
+  function insertMyBlock(data: ClipboardNodes) {
     safe(() => {
       const target =
         selectedNode && DEFINITIONS[selectedNode.component].container
           ? selectedNode.id
-          : selected
-            ? (parentId(project, selected) ?? page.rootId)
-            : page.rootId;
-      if (isLocked(project, target))
-        throw new Error("잠금을 해제하거나 다른 영역을 선택하세요.");
-      const node = createNode(def.id);
-      commit(
-        editProject(project, (next) => {
-          next.nodes[node.id] = node;
-          next.nodes[target].children.push(node.id);
-        }),
-      );
-      select(node.id);
+          : page.rootId;
+      const result = pasteNodes(project, data, target);
+      commit(result.project);
+      setSelection(result.ids);
     });
   }
   const duplicate = () => {
     if (!selected) return;
     safe(() => {
-      const result = duplicateNode(project, selected);
+      const parent = parentId(project, selected);
+      if (!parent) return;
+      const result = pasteNodes(
+        project,
+        copyNodes(project, editableRoots(project, selection)),
+        parent,
+      );
       commit(result.project);
-      select(result.id);
+      setSelection(result.ids);
     });
   };
   const remove = () => {
     if (!selected) return;
     safe(() => {
       const parent = parentId(project, selected);
-      commit(removeNode(project, selected));
+      commit(deleteNodes(project, selection));
       setSelected(parent ?? null);
     });
   };
   const move = (target: string, index: number) => {
     if (selected)
-      safe(() => commit(moveNode(project, selected, target, index)));
+      safe(() =>
+        commit(
+          relocateNode(
+            project,
+            selected,
+            target,
+            index,
+            viewport,
+            canvasDocument.current,
+          ),
+        ),
+      );
   };
+  const selectMany = (ids: string[]) => {
+    setSelection(ids);
+    if (ids.length !== 1 || ids[0] !== partSelection?.id)
+      setPartSelection(null);
+    if (ids.length) setShowInspector(true);
+  };
+  const patchPart = (path: string, patch: import("./model").PartLayout, text?: string) =>
+    safe(() => {
+      const id = partSelection?.id ?? selected;
+      if (!id || isLocked(project, id)) return;
+      commit(
+        editProject(project, (next) => {
+          const node = next.nodes[id];
+          node.parts ??= {};
+          const part = node.parts[path] ?? { layout: {}, responsive: {} };
+          if (viewport === "mobile") Object.assign(part.layout, patch);
+          else
+            part.responsive[viewport] = {
+              ...part.responsive[viewport],
+              ...patch,
+            };
+          if (text !== undefined) {
+            const root = canvasDocument.current?.getElementById(id),
+              target = root ? partElement(root, path) : null;
+            const binding = target
+              ? boundTextChange(project.nodes[id], target, text)
+              : null;
+            const contentKey = target?.getAttribute("data-content-key"), itemId = target?.getAttribute("data-content-item"), field = target?.getAttribute("data-content-field");
+            const contentItem = contentKey && node.content?.[contentKey]?.find(item => item.id === itemId);
+            if (contentItem && field && typeof contentItem.values[field] === "string") {
+              const start = target?.getAttribute("data-rich-start"), end = target?.getAttribute("data-rich-end");
+              contentItem.values[field] = start != null && end != null ? replaceRichRun(String(contentItem.values[field]), Number(start), Number(end), text) : text;
+              delete part.text;
+            } else if (binding) {
+              node.props[binding.key] = binding.value;
+              delete part.text;
+            } else part.text = text;
+          }
+          node.parts[path] = part;
+        }),
+      );
+    });
+  const changeMode = (id: string, mode: "flow" | "free") =>
+    safe(() => {
+      const doc = canvasDocument.current,
+        el = doc?.getElementById(id);
+      if (!doc || !el) return;
+      const next = convertLayout(
+        project,
+        id,
+        viewport,
+        mode,
+        measureChildren(doc, id),
+        elementSize(el),
+      );
+      if (mode === "flow") setLayoutPreview(next);
+      else commit(next);
+    });
+  const patchDesign = (patch: Partial<Layout>) =>
+    safe(() => {
+      const doc = canvasDocument.current;
+      if (!doc || !("anchorX" in patch || "anchorY" in patch)) {
+        commit(patchLayouts(project, selection, viewport, patch));
+        return;
+      }
+      commit(
+        editProject(project, (next) => {
+          for (const id of editableRoots(project, selection)) {
+            const parent = parentId(project, id),
+              el = doc.getElementById(id),
+              parentEl = parent ? doc.getElementById(parent) : null;
+            if (!el || !parentEl) continue;
+            const box = boxInParent(el, parentEl),
+              size = elementSize(parentEl);
+            writeLayout(next.nodes[id], viewport, {
+              ...box,
+              ...patch,
+              basisWidth: Math.max(1, size.width),
+              basisHeight: Math.max(1, size.height),
+            });
+          }
+        }),
+      );
+    });
+  const designAction = (action: DesignAction) =>
+    safe(() => {
+      const ids = selectionRoots(project, selection),
+        id = ids[0];
+      const doc = canvasDocument.current;
+      if (action === "copy") {
+        clipboard.current = copyNodes(project, ids);
+        setMessage(
+          "요소를 복사했습니다. 같은 프로젝트나 다른 페이지에 붙여넣을 수 있습니다.",
+        );
+        return;
+      }
+      if (action === "paste") {
+        if (!clipboard.current?.roots.length) {
+          setMessage("먼저 요소를 복사하세요.");
+          return;
+        }
+        const target =
+          selectedNode && DEFINITIONS[selectedNode.component].container
+            ? selectedNode.id
+            : selected
+              ? (parentId(project, selected) ?? page.rootId)
+              : page.rootId;
+        const result = pasteNodes(project, clipboard.current, target);
+        commit(result.project);
+        selectMany(result.ids);
+        return;
+      }
+      if (!id || !doc) return;
+      if (action === "focus") {
+        doc.getElementById(id)?.scrollIntoView({
+          block: "center",
+          inline: "center",
+          behavior: "instant",
+        });
+        return;
+      }
+      if (action === "detach") {
+        void detachComposite(project, id)
+          .then((result) => {
+            if (latestProject.current !== project)
+              throw new Error(
+                "다른 편집이 반영되었습니다. 내부 요소 분리를 다시 실행하세요.",
+              );
+            commit(result);
+          })
+          .catch((error) => setMessage(String(error.message)));
+        return;
+      }
+      if (["front", "back", "forward", "backward"].includes(action)) {
+        commit(reorderSelection(project, ids, action as "front"));
+        return;
+      }
+      if (action === "ungroup") {
+        const result = ungroupNode(project, id);
+        commit(result.project);
+        selectMany(result.ids);
+        return;
+      }
+      const parent = parentId(project, id);
+      if (action === "fit-content") {
+        const boxes = measureChildren(doc, id),
+          bounds = unionBox(Object.values(boxes));
+        commit(
+          patchLayouts(project, [id], viewport, {
+            height: Math.max(1, Math.ceil(bounds.y + bounds.height + 24)),
+            heightMode: "fixed",
+          }),
+        );
+        return;
+      }
+      if (
+        !parent ||
+        ids.some(
+          (id) => parentId(project, id) !== parent || isLocked(project, id),
+        )
+      )
+        return;
+      const allBoxes = measureChildren(doc, parent),
+        boxes = Object.fromEntries(
+          ids.filter((id) => allBoxes[id]).map((id) => [id, allBoxes[id]]),
+        );
+      if (action === "group") {
+        const result = groupNodes(project, ids, viewport, boxes);
+        commit(result.project);
+        selectMany(result.ids);
+      } else if (
+        resolvedLayout(project.nodes[parent], viewport).mode === "free"
+      )
+        commit(
+          applyBoxes(
+            project,
+            viewport,
+            alignBoxes(boxes, action as "left"),
+            elementSize(doc.getElementById(parent)!),
+          ),
+        );
+    });
   function keyboard(event: KeyboardEvent) {
+    if (event.defaultPrevented) return;
     const target = event.target as HTMLElement;
     if (
       event.nativeEvent.isComposing ||
       target.closest("input,textarea,select,[contenteditable=true]")
     )
       return;
+    if (preview || layoutPreview) return;
+    const mod = event.ctrlKey || event.metaKey;
+    if (mod && ["c", "v", "g"].includes(event.key.toLowerCase())) {
+      event.preventDefault();
+      designAction(
+        event.key.toLowerCase() === "c"
+          ? "copy"
+          : event.key.toLowerCase() === "v"
+            ? "paste"
+            : event.shiftKey
+              ? "ungroup"
+              : "group",
+      );
+      return;
+    }
+    if (mod && event.key.toLowerCase() === "a") {
+      event.preventDefault();
+      const parent = selected
+        ? (parentId(project, selected) ?? selected)
+        : page.rootId;
+      selectMany(
+        project.nodes[parent].children.filter((id) => !isLocked(project, id)),
+      );
+      return;
+    }
+    if (
+      ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key) &&
+      selected
+    ) {
+      if (partSelection?.id === selected) {
+        event.preventDefault();
+        const l = resolvedPart(
+            project.nodes[selected].parts?.[partSelection.path],
+            viewport,
+          ),
+          step = event.shiftKey ? 10 : 1;
+        patchPart(partSelection.path, {
+          x: Math.max(
+            -100000,
+            Math.min(
+              100000,
+              l.x +
+                (event.key === "ArrowLeft"
+                  ? -step
+                  : event.key === "ArrowRight"
+                    ? step
+                    : 0),
+            ),
+          ),
+          y: Math.max(
+            -100000,
+            Math.min(
+              100000,
+              l.y +
+                (event.key === "ArrowUp"
+                  ? -step
+                  : event.key === "ArrowDown"
+                    ? step
+                    : 0),
+            ),
+          ),
+        });
+        return;
+      }
+      const ids = editableRoots(project, selection).filter((id) => {
+        const parent = parentId(project, id);
+        return (
+          parent &&
+          resolvedLayout(project.nodes[parent], viewport).mode === "free"
+        );
+      });
+      if (ids.length) {
+        event.preventDefault();
+        if (!nudgeGroup.current)
+          nudgeGroup.current = `nudge-${crypto.randomUUID()}`;
+        const step = event.shiftKey ? 10 : 1;
+        commit(
+          editProject(project, (next) => {
+            for (const id of ids) {
+              const l = resolvedLayout(project.nodes[id], viewport);
+              writeLayout(next.nodes[id], viewport, {
+                x: Math.max(
+                  -100000,
+                  Math.min(
+                    100000,
+                    l.x +
+                      (event.key === "ArrowLeft"
+                        ? -step
+                        : event.key === "ArrowRight"
+                          ? step
+                          : 0),
+                  ),
+                ),
+                y: Math.max(
+                  -100000,
+                  Math.min(
+                    100000,
+                    l.y +
+                      (event.key === "ArrowUp"
+                        ? -step
+                        : event.key === "ArrowDown"
+                          ? step
+                          : 0),
+                  ),
+                ),
+              });
+            }
+          }),
+          nudgeGroup.current,
+        );
+      }
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
       event.preventDefault();
       if (event.shiftKey) redo();
@@ -238,7 +744,7 @@ export default function Editor({
     return (
       <div key={id}>
         <div
-          className={`b-layer ${selected === id ? "selected" : ""} ${dropTarget === id ? "drop-target" : ""}`}
+          className={`b-layer ${selection.includes(id) ? "selected" : ""} ${dropTarget === id ? "drop-target" : ""}`}
           style={{ paddingLeft: 8 + depth * 13 }}
           draggable={id !== page.rootId && !isLocked(project, id)}
           onDragStart={(e) => {
@@ -267,13 +773,15 @@ export default function Editor({
             if (target)
               safe(() =>
                 commit(
-                  moveNode(
+                  relocateNode(
                     project,
                     dragging.current!,
                     target,
                     DEFINITIONS[node.component].container
                       ? node.children.length
                       : project.nodes[target].children.indexOf(id),
+                    viewport,
+                    canvasDocument.current,
                   ),
                 ),
               );
@@ -300,8 +808,16 @@ export default function Editor({
           )}
           <button
             className="b-layer-select"
-            aria-pressed={selected === id}
-            onClick={() => select(id)}
+            aria-pressed={selection.includes(id)}
+            onClick={(event) =>
+              event.shiftKey
+                ? selectMany(
+                    selection.includes(id)
+                      ? selection.filter((item) => item !== id)
+                      : selectionRoots(project, [...selection, id]),
+                  )
+                : select(id)
+            }
           >
             <Icon size={14} />
             <span>{node.name}</span>
@@ -320,6 +836,9 @@ export default function Editor({
     <main
       className={`builder ${preview ? "builder-preview-mode" : ""}`}
       onKeyDown={keyboard}
+      onKeyUp={() => {
+        nudgeGroup.current = "";
+      }}
     >
       <header className="builder-topbar">
         <div className="builder-top-left">
@@ -571,10 +1090,140 @@ export default function Editor({
                 <Palette size={14} />
                 테마
               </button>
+              <button role="tab" aria-selected={tab === "assets"} tabIndex={tab === "assets" ? 0 : -1} className={tab === "assets" ? "active" : ""} onClick={() => setTab("assets")}>자산</button>
             </div>
             <div className="builder-panel-scroll">
               {tab === "library" ? (
                 <div className="builder-panel-content">
+                  <div className="b-library-modes">
+                    {[
+                      ["all", "전체"],
+                      ["basic", "기본"],
+                      ["components", "컴포넌트"],
+                      ["blocks", "블록"],
+                      ["scenes", "장면"],
+                      ["effects", "효과"],
+                      ["favorites", "즐겨찾기"],
+                      ["recent", "최근"],
+                      ["mine", "내 블록"],
+                    ].map(([id, name]) => (
+                      <button
+                        key={id}
+                        className={libraryMode === id ? "active" : ""}
+                        onClick={() => {
+                          setLibraryMode(id);
+                          setCategory("전체");
+                          setTileLimit(24);
+                        }}
+                      >
+                        {name}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="b-library-filters">
+                    <label>
+                      디자인
+                      <select
+                        aria-label="라이브러리 디자인"
+                        value={libraryFamily}
+                        onChange={(e) =>
+                          setLibraryFamily(
+                            e.target.value as DesignFamily | "legacy",
+                          )
+                        }
+                      >
+                        <option value="legacy">기존 디자인</option>
+                        {DESIGN_FAMILIES.map((f) => (
+                          <option value={f.id} key={f.id}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      출처
+                      <select
+                        aria-label="라이브러리 출처"
+                        value={librarySource}
+                        onChange={(e) => setLibrarySource(e.target.value)}
+                      >
+                        <option value="all">전체</option>
+                        <option value="shadcn">shadcn/ui 기반</option>
+                        <option value="studio">Prompt Studio</option>
+                      </select>
+                    </label>
+                  </div>
+                  {libraryMode === "effects" && (
+                    <div className="b-effect-library">
+                      <p className="b-help">
+                        캔버스에서 요소를 선택하고 효과를 적용하세요.
+                        미리보기에서 재생됩니다.
+                      </p>
+                      {MOTIONS.filter(([id]) => id !== "none").map(
+                        ([id, name]) => (
+                          <button
+                            className="b-button"
+                            key={id}
+                            disabled={!selection.length}
+                            onClick={() =>
+                              commit(
+                                editProject(project, (next) => {
+                                  for (const nodeId of editableRoots(
+                                    project,
+                                    selection,
+                                  ))
+                                    next.nodes[nodeId].appearance = {
+                                      ...next.nodes[nodeId].appearance,
+                                      motion: id,
+                                    };
+                                }),
+                              )
+                            }
+                          >
+                            {name}
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  )}
+                  {libraryMode === "mine" && (
+                    <div className="b-my-blocks">
+                      {!myBlocks.length && (
+                        <p className="b-help">
+                          요소를 선택한 뒤 오른쪽에서 ‘내 블록으로 저장’을
+                          누르세요.
+                        </p>
+                      )}
+                      {myBlocks.map((block) => (
+                        <div key={block.id}>
+                          <button
+                            className="b-button"
+                            onClick={() => insertMyBlock(block.data)}
+                          >
+                            {block.name} 추가
+                          </button>
+                          <button
+                            className="b-icon"
+                            aria-label={`${block.name} 저장본 삭제`}
+                            onClick={() =>
+                              safe(() => {
+                                const list = myBlocks.filter(
+                                  (b) => b.id !== block.id,
+                                );
+                                localStorage.setItem(
+                                  "studio-my-blocks",
+                                  JSON.stringify(list),
+                                );
+                                setMyBlocks(list);
+                              })
+                            }
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="b-search">
                     <Search size={15} />
                     <input
@@ -611,7 +1260,7 @@ export default function Editor({
                     <span>{filtered.length}</span>
                   </div>
                   <div className="b-component-grid">
-                    {filtered.map((def) => {
+                    {filtered.slice(0, tileLimit).map((def) => {
                       const help = componentHelp(def.id);
                       return (
                         <div className="b-component-card" key={def.id}>
@@ -619,17 +1268,62 @@ export default function Editor({
                             className="b-component-tile"
                             title={`${def.name} · ${help.summary}`}
                             aria-label={`${help.label} 추가`}
-                            onClick={() => add(def)}
+                            onClick={() => {
+                              if (!skipLibraryClick.current) add(def);
+                            }}
+                            onPointerDown={(event) => {
+                              libraryDrag.current?.();
+                              libraryDrag.current = beginLibraryDrag(
+                                event,
+                                project,
+                                canvasDocument.current,
+                                viewport,
+                                def.name,
+                                (drop) => {
+                                  if (latestProject.current === project)
+                                    add(def, drop);
+                                },
+                                () => {
+                                  skipLibraryClick.current = true;
+                                  setTimeout(() => {
+                                    skipLibraryClick.current = false;
+                                  }, 0);
+                                },
+                              );
+                            }}
                           >
                             <span
                               className={`b-tile-visual b-tile-${def.category === "구조" ? "structure" : def.category === "화면 구역" ? "section" : "component"}`}
                             >
-                              <ComponentThumbnail id={def.id} />
+                              <LiveThumbnail
+                                id={def.id}
+                                theme={project.theme}
+                                family={libraryFamily}
+                              />
                               <Plus size={12} className="b-tile-plus" />
                             </span>
                             <span>{help.label}</span>
                           </button>
                           <p className="b-component-summary">{help.summary}</p>
+                          <button
+                            className="b-tile-favorite"
+                            aria-label={`${help.label} 즐겨찾기`}
+                            aria-pressed={favorites.includes(def.id)}
+                            onClick={() =>
+                              safe(() => {
+                                const list = favorites.includes(def.id)
+                                  ? favorites.filter((id) => id !== def.id)
+                                  : [...favorites, def.id];
+                                localStorage.setItem(
+                                  "studio-favorites",
+                                  JSON.stringify(list),
+                                );
+                                setFavorites(list);
+                              })
+                            }
+                          >
+                            {favorites.includes(def.id) ? "★" : "☆"}
+                          </button>
                           <button
                             className="b-component-detail"
                             aria-label={`${help.label} 미리보기`}
@@ -642,31 +1336,42 @@ export default function Editor({
                       );
                     })}
                   </div>
-                  {!filtered.length && (
-                    <div className="b-no-results">
-                      <Search size={24} />
-                      <p>검색 결과가 없어요.</p>
-                      <button
-                        onClick={() => {
-                          setQuery("");
-                          setCategory("전체");
-                        }}
-                      >
-                        전체 컴포넌트 보기
-                      </button>
-                    </div>
+                  {filtered.length > tileLimit && (
+                    <button
+                      className="b-button"
+                      onClick={() => setTileLimit(tileLimit + 24)}
+                    >
+                      더 보기 · {filtered.length - tileLimit}개
+                    </button>
                   )}
+                  {!filtered.length &&
+                    !["effects", "mine"].includes(libraryMode) && (
+                      <div className="b-no-results">
+                        <Search size={24} />
+                        <p>검색 결과가 없어요.</p>
+                        <button
+                          onClick={() => {
+                            setQuery("");
+                            setCategory("전체");
+                          }}
+                        >
+                          전체 컴포넌트 보기
+                        </button>
+                      </div>
+                    )}
                   <div className="b-library-tip">
                     <Plus size={14} />
                     <p>
                       클릭하면 선택한 영역에 추가됩니다.
                       <br />
-                      레이어에서 위치를 바꿀 수 있어요.
+                      끌어서 원하는 위치에 놓을 수도 있어요.
                     </p>
                   </div>
                 </div>
               ) : tab === "theme" ? (
                 <ThemePanel project={project} commit={commit} />
+              ) : tab === "assets" ? (
+                <AssetPanel project={project} commit={commit} onInsert={asset => add(DEFINITIONS[asset.kind === "image" ? "image" : asset.kind === "video" ? "video-player" : "audio-player"], undefined, { src: assetRef(asset.id), ...(asset.kind === "image" ? { alt: asset.description || asset.name } : { title: asset.name }) })} />
               ) : (
                 <div className="b-layers-panel">
                   <div className="b-library-heading">
@@ -780,6 +1485,8 @@ export default function Editor({
                 <option value={0.5}>50%</option>
                 <option value={0.75}>75%</option>
                 <option value={1}>100%</option>
+                <option value={1.5}>150%</option>
+                <option value={2}>200%</option>
               </select>
               {!preview && (
                 <button
@@ -792,22 +1499,159 @@ export default function Editor({
               )}
             </div>
           </div>
+          {!preview && (
+            <div className="design-toolbar" aria-label="디자인 도구">
+              <div className="b-segment">
+                <button
+                  aria-pressed={tool === "select"}
+                  className={tool === "select" ? "active" : ""}
+                  onClick={() => setTool("select")}
+                >
+                  선택
+                </button>
+                <button
+                  aria-pressed={tool === "hand"}
+                  className={tool === "hand" ? "active" : ""}
+                  onClick={() => setTool("hand")}
+                >
+                  화면 이동
+                </button>
+              </div>
+              <button
+                className="b-button b-button-small"
+                onClick={() => add(DEFINITIONS.frame)}
+              >
+                + 자유 배치 영역
+              </button>
+              <button
+                className="b-button b-button-small"
+                onClick={() => add(DEFINITIONS.text)}
+              >
+                텍스트
+              </button>
+              <button
+                className="b-button b-button-small"
+                onClick={() => add(DEFINITIONS.shape)}
+              >
+                도형
+              </button>
+              <button
+                className="b-button b-button-small"
+                onClick={() => select(page.rootId)}
+              >
+                페이지 설정
+              </button>
+              <span>Shift 다중 선택 · Space 화면 이동</span>
+              <button
+                className="b-button b-button-small"
+                onClick={() => {
+                  const target =
+                    selectedNode &&
+                    DEFINITIONS[selectedNode.component].container
+                      ? selectedNode.id
+                      : selected
+                        ? (parentId(project, selected) ?? page.rootId)
+                        : page.rootId;
+                  changeMode(
+                    target,
+                    resolvedLayout(project.nodes[target], viewport).mode ===
+                      "free"
+                      ? "flow"
+                      : "free",
+                  );
+                }}
+              >
+                {(() => {
+                  const target =
+                    selectedNode &&
+                    DEFINITIONS[selectedNode.component].container
+                      ? selectedNode.id
+                      : selected
+                        ? (parentId(project, selected) ?? page.rootId)
+                        : page.rootId;
+                  return resolvedLayout(project.nodes[target], viewport)
+                    .mode === "free"
+                    ? "자유 배치 ⇄ 자동 배치"
+                    : "자동 배치 ⇄ 자유 배치";
+                })()}
+              </button>
+              {selectedNode &&
+                !DEFINITIONS[selectedNode.component].container && (
+                  <button
+                    className="b-button b-button-small"
+                    onClick={() => {
+                      setShowInspector(true);
+                      const root = surfaceDocument?.getElementById(
+                        selectedNode.id,
+                      );
+                      const child = root?.querySelector(
+                        "[data-part-id],button,h1,h2,h3,p,svg,input",
+                      );
+                      if (child && root) {
+                        const path = partPath(child, root, selectedNode.parts);
+                        if (path)
+                          setPartSelection({ id: selectedNode.id, path });
+                      }
+                    }}
+                  >
+                    내부 편집
+                  </button>
+                )}
+            </div>
+          )}
+          {layoutPreview && (
+            <div className="design-conversion-preview" role="status">
+              <span>자동 배치 미리보기 · 레이어 순서대로 정렬됩니다.</span>
+              <button
+                className="b-button"
+                onClick={() => {
+                  commit(layoutPreview);
+                  setLayoutPreview(null);
+                }}
+              >
+                이 배치 적용
+              </button>
+              <button
+                className="b-button"
+                onClick={() => setLayoutPreview(null)}
+              >
+                취소
+              </button>
+            </div>
+          )}
           <PreviewFrame
-            project={project}
+            key={replay}
+            fitViewport
+            project={layoutPreview ?? project}
             pageId={page.id}
             viewport={viewport}
             width={canvasWidth}
             selected={selected}
             onSelect={select}
-            preview={preview}
+            preview={preview || !!layoutPreview}
             zoom={zoom}
+            selection={selection}
+            onSelection={selectMany}
+            commit={commit}
+            onReady={(doc) => {
+              canvasDocument.current = doc;
+              setSurfaceDocument(doc);
+            }}
+            onMessage={setMessage}
+            tool={tool}
+            partSelection={partSelection}
+            onPartSelection={setPartSelection}
+            onPartPatch={patchPart}
+            onLibraryDrop={(id, drop) => {
+              if (DEFINITIONS[id]) add(DEFINITIONS[id], drop);
+            }}
           />
           <div className="builder-statusbar">
             <span>
               <span className="b-status-dot" />
               {preview
                 ? "미리보기 · UI를 직접 조작해보세요"
-                : "편집 모드 · 요소를 클릭해 다듬어보세요"}
+                : `편집 모드 · ${selection.length ? `${selection.length}개 선택 · ` : ""}드래그 이동 · 더블클릭 텍스트 편집`}
             </span>
             <span>
               {count}개 요소 · {project.pages.length}개 페이지
@@ -831,15 +1675,82 @@ export default function Editor({
               </button>
             </div>
             <div className="builder-panel-scroll">
-              <Inspector
-                project={project}
-                node={selectedNode}
-                viewport={viewport}
-                commit={commit}
-                onDuplicate={duplicate}
-                onDelete={remove}
-                onMove={move}
-              />
+              {selection.length === 1 && !layoutPreview && (
+                <PartsPanel
+                  project={project}
+                  commit={commit}
+                  id={selected}
+                  doc={surfaceDocument}
+                  viewport={viewport}
+                  selected={partSelection}
+                  onSelect={setPartSelection}
+                  onPatch={patchPart}
+                  onReset={(path, key) => {
+                    if (selected && !isLocked(project, selected))
+                      commit(
+                        editProject(project, (next) => {
+                          const part = next.nodes[selected].parts?.[path];
+                          if (part) {
+                            if (key) {
+                              const values = viewport === "mobile" ? part.layout : part.responsive[viewport];
+                              if (values) {
+                                delete values[key];
+                                if (key === "width") delete values.widthMode;
+                                if (key === "height") delete values.heightMode;
+                              }
+                            } else {
+                              part.layout = {};
+                              part.responsive = {};
+                            }
+                          }
+                        }),
+                      );
+                  }}
+                />
+              )}
+              {!layoutPreview && (
+                <AppearancePanel
+                  project={project}
+                  ids={selection}
+                  commit={commit}
+                  onReplay={() => {
+                    setPreview(true);
+                    setReplay(replay + 1);
+                  }}
+                  onSaveBlock={saveBlock}
+                  onStructure={(component) =>
+                    safe(() => {
+                      if (selected)
+                        setStructurePreview(
+                          changeBlockStructure(project, selected, component),
+                        );
+                    })
+                  }
+                />
+              )}
+              {!layoutPreview && (
+                <DesignPanel
+                  project={project}
+                  ids={selection}
+                  viewport={viewport}
+                  commit={commit}
+                  onMode={changeMode}
+                  onAction={designAction}
+                  onPatch={patchDesign}
+                  document={surfaceDocument}
+                />
+              )}
+              {selection.length <= 1 && !layoutPreview && (
+                <Inspector
+                  project={project}
+                  node={selectedNode}
+                  viewport={viewport}
+                  commit={commit}
+                  onDuplicate={duplicate}
+                  onDelete={remove}
+                  onMove={move}
+                />
+              )}
             </div>
           </aside>
         )}
@@ -850,6 +1761,46 @@ export default function Editor({
           onRestore={commit}
           onClose={() => setCheckpointsOpen(false)}
         />
+      )}
+      {structurePreview && (
+        <Modal
+          title="블록 구조 미리보기"
+          wide
+          onClose={() => setStructurePreview(null)}
+        >
+          <p className="b-help">
+            내부 문구·속성·부분 수정을 유지한 결과입니다. 적용하면 한 번의 실행
+            취소로 되돌릴 수 있습니다.
+          </p>
+          <PreviewFrame
+            project={structurePreview}
+            pageId={page.id}
+            viewport={viewport}
+            width={canvasWidth}
+            selected={null}
+            onSelect={() => {}}
+            preview
+            zoom={0}
+            viewportHeight={520}
+          />
+          <div className="b-modal-actions">
+            <button
+              className="b-button"
+              onClick={() => setStructurePreview(null)}
+            >
+              취소
+            </button>
+            <button
+              className="b-button b-button-primary"
+              onClick={() => {
+                commit(structurePreview);
+                setStructurePreview(null);
+              }}
+            >
+              이 구조 적용
+            </button>
+          </div>
+        </Modal>
       )}
       {libraryPreview && libraryExample && (
         <Modal
@@ -862,7 +1813,39 @@ export default function Editor({
             {DEFINITIONS[libraryPreview].name}
           </p>
           <div className="b-component-demo">
+            <div className="b-library-filters">
+              <label>
+                미리보기 폭
+                <select
+                  aria-label="라이브러리 미리보기 폭"
+                  value={libraryWidth}
+                  onChange={(e) => setLibraryWidth(Number(e.target.value))}
+                >
+                  <option value={390}>모바일 · 390px</option>
+                  <option value={768}>태블릿 · 768px</option>
+                  <option value={1440}>데스크톱 · 1440px</option>
+                </select>
+              </label>
+              <label>
+                디자인
+                <select
+                  aria-label="미리보기 디자인"
+                  value={libraryFamily}
+                  onChange={(e) =>
+                    setLibraryFamily(e.target.value as DesignFamily | "legacy")
+                  }
+                >
+                  <option value="legacy">기존 디자인</option>
+                  {DESIGN_FAMILIES.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
             <PreviewFrame
+              width={libraryWidth}
               project={libraryExample}
               pageId={libraryExample.pages[0].id}
               viewport={
@@ -876,6 +1859,42 @@ export default function Editor({
               zoom={0}
               viewportHeight={380}
             />
+            <div className="b-variant-gallery">
+              {DESIGN_FAMILIES.map((f) => (
+                <button
+                  key={f.id}
+                  aria-pressed={libraryFamily === f.id}
+                  onClick={() => setLibraryFamily(f.id)}
+                >
+                  <LiveThumbnail
+                    id={libraryPreview}
+                    theme={project.theme}
+                    family={f.id}
+                  />
+                  <span>{f.name}</span>
+                </button>
+              ))}
+            </div>
+            {DEFINITIONS[libraryPreview].fields.find(
+              (field) => field.key === "state",
+            )?.options && (
+              <label className="b-field">
+                컴포넌트 상태
+                <select
+                  aria-label="미리보기 상태"
+                  value={libraryState}
+                  onChange={(e) => setLibraryState(e.target.value)}
+                >
+                  {DEFINITIONS[libraryPreview].fields
+                    .find((field) => field.key === "state")!
+                    .options!.map((state) => (
+                      <option key={state} value={state}>
+                        {state}
+                      </option>
+                    ))}
+                </select>
+              </label>
+            )}
           </div>
           <p className="b-help">
             실제로 눌러보세요. 추가한 뒤 문구·배치·테마를 바꿀 수 있습니다.
@@ -982,6 +2001,8 @@ export default function Editor({
               <Download size={15} />
               프로젝트 백업
             </button>
+            <button className="b-button" disabled={exporting} onClick={async () => { setExporting(true); try { downloadFile(`${project.name}.studio.zip`, await exportProjectArchive(project)); setExportStatus("설계와 자산 원본을 함께 백업했습니다."); } catch (error) { setExportStatus(error instanceof Error ? error.message : "백업하지 못했습니다."); } finally { setExporting(false); } }}>자산 포함 ZIP 백업</button>
+            {Object.keys(project.assets).length > 0 && <p className="b-help">JSON과 공유 링크에는 자산 원본이 포함되지 않습니다. 다른 기기에는 자산 포함 ZIP을 전달하세요.</p>}
             <button
               className="b-button"
               disabled={exporting}

@@ -2,6 +2,92 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createTemplate } from "../../src/builder/templates";
 import { parseProjectText } from "../../src/builder/model";
+import { DESIGN_DEFAULTS } from "../../src/builder/design-schema";
+
+for (const version of [2, 3, 4])
+  test(`saving an existing v${version} project keeps the original in a checkpoint`, async ({
+    page,
+  }) => {
+    const legacy = { ...createTemplate("landing"), schemaVersion: version };
+    delete (legacy as Partial<typeof legacy>).assets;
+    if (version === 2)
+      for (const node of Object.values(legacy.nodes)) {
+        for (const layout of [node.layout, ...Object.values(node.responsive)]) {
+          for (const key of Object.keys(DESIGN_DEFAULTS))
+            delete (layout as Record<string, unknown>)[key];
+        }
+      }
+    legacy.name = "이전 형식 원본";
+    await page.goto("/");
+    await page.evaluate(
+      (project) =>
+        new Promise<void>((resolve, reject) => {
+          const request = indexedDB.open("prompt-studio-projects-v2");
+          request.onerror = () => reject(request.error);
+          request.onupgradeneeded = () => {
+            const db = request.result;
+            if (!db.objectStoreNames.contains("projects"))
+              db.createObjectStore("projects", { keyPath: "project.id" });
+            if (!db.objectStoreNames.contains("checkpoints"))
+              db.createObjectStore("checkpoints", { keyPath: "id" });
+          };
+          request.onsuccess = () => {
+            const db = request.result,
+              tx = db.transaction("projects", "readwrite");
+            tx.objectStore("projects").put({ project, version: "original-v2" });
+            tx.oncomplete = () => {
+              db.close();
+              resolve();
+            };
+            tx.onabort = () => {
+              db.close();
+              reject(tx.error);
+            };
+          };
+        }),
+      legacy,
+    );
+    await page.reload();
+    await page
+      .locator(".workspace-project-main")
+      .filter({ hasText: "이전 형식 원본" })
+      .click();
+    await page.getByLabel("프로젝트 이름").fill("변환 후 편집");
+    await expect(page.locator(".b-save-state")).toHaveText("브라우저에 저장됨");
+    const stored = await page.evaluate(
+      ({ id, version }) =>
+        new Promise<{
+          current: { schemaVersion: number; name: string };
+          original: unknown;
+        }>((resolve, reject) => {
+          const request = indexedDB.open("prompt-studio-projects-v2");
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            const db = request.result,
+              tx = db.transaction(["projects", "checkpoints"], "readonly");
+            const current = tx.objectStore("projects").get(id),
+              backup = tx
+                .objectStore("checkpoints")
+                .get(`v${version}-backup-${id}`);
+            tx.oncomplete = () => {
+              db.close();
+              resolve({
+                current: current.result.project,
+                original: backup.result?.project,
+              });
+            };
+            tx.onabort = () => {
+              db.close();
+              reject(tx.error);
+            };
+          };
+        }),
+      { id: legacy.id, version },
+    );
+    expect(stored.current.schemaVersion).toBe(5);
+    expect(stored.current.name).toBe("변환 후 편집");
+    expect(stored.original).toEqual(legacy);
+  });
 
 async function blockWrites(page: Page, blockRecovery = false) {
   await page.evaluate((blockRecovery) => {

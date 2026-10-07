@@ -31,7 +31,7 @@ test("200 nodes including a 50-row table remain responsive while editing Korean 
     buffer: Buffer.from(JSON.stringify(project)),
   });
   await page
-    .frameLocator("iframe")
+    .frameLocator('iframe[title="디자인 미리보기"]')
     .getByText("내용 0", { exact: true })
     .click();
   await expect(page.getByLabel("텍스트", { exact: true })).toBeVisible();
@@ -47,7 +47,7 @@ test("200 nodes including a 50-row table remain responsive while editing Korean 
       "value",
     )!.set!;
     const target = document
-      .querySelector("iframe")!
+      .querySelector<HTMLIFrameElement>('iframe[title="디자인 미리보기"]')!
       .contentDocument!.querySelector(".ui-text")!;
     const times: number[] = [];
     const dispatchTimes: number[] = [];
@@ -107,10 +107,14 @@ test("200 nodes including a 50-row table remain responsive while editing Korean 
     `artifacts/performance-${test.info().project.name}.json`,
     JSON.stringify(result, null, 2),
   );
+  await writeFile(
+    `artifacts/performance-${test.info().project.name}-repeat-${test.info().repeatEachIndex}.json`,
+    JSON.stringify(result, null, 2),
+  );
   expect(result.p95ms).toBeLessThan(100);
   await expect(
     page
-      .frameLocator("iframe")
+      .frameLocator('iframe[title="디자인 미리보기"]')
       .getByText("한글 조립 테스트 24", { exact: true }),
   ).toBeVisible();
 });

@@ -10,11 +10,11 @@ export class SaveConflict extends Error {
     );
   }
 }
-function openDatabase(): Promise<IDBDatabase> {
+export function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     let request: IDBOpenDBRequest;
     try {
-      request = indexedDB.open(DATABASE, 2);
+      request = indexedDB.open(DATABASE, 3);
     } catch {
       reject(
         new Error(
@@ -29,6 +29,8 @@ function openDatabase(): Promise<IDBDatabase> {
         request.result.createObjectStore("projects", { keyPath: "project.id" });
       if (!request.result.objectStoreNames.contains("checkpoints"))
         request.result.createObjectStore("checkpoints", { keyPath: "id" });
+      if (!request.result.objectStoreNames.contains("assets"))
+        request.result.createObjectStore("assets", { keyPath: "id" });
     };
     request.onsuccess = () => {
       if (abandoned) {
@@ -223,7 +225,7 @@ export async function saveProject(
   parseProject(project);
   const db = await openDatabase();
   return new Promise((resolve, reject) => {
-    const tx = transaction(db, "projects", "readwrite");
+    const tx = transaction(db, ["projects", "checkpoints"], "readwrite");
     const store = tx.objectStore("projects");
     const request = store.get(project.id);
     const version = crypto.randomUUID();
@@ -232,7 +234,19 @@ export async function saveProject(
       if ((request.result?.version ?? null) !== expectedVersion) {
         conflict = true;
         tx.abort();
-      } else store.put({ project, version });
+      } else {
+        // The backup and upgrade commit atomically; a failed write preserves v2.
+        if ([2, 3, 4].includes(request.result?.project?.schemaVersion)) {
+          tx.objectStore("checkpoints").put({
+            id: `v${request.result.project.schemaVersion}-backup-${project.id}`,
+            projectId: project.id,
+            project: request.result.project,
+            name: "디자인 확장 전 원본",
+            createdAt: new Date().toISOString(),
+          });
+        }
+        store.put({ project, version });
+      }
     };
     tx.oncomplete = () => {
       db.close();

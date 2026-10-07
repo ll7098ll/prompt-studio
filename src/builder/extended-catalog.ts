@@ -1,4 +1,5 @@
 import type { Definition, Field } from "./catalog";
+import { GALLERY_ITEMS } from "./image-collections";
 
 const text = (key: string, label: string): Field => ({
   key,
@@ -343,6 +344,7 @@ export const EXTENDED_CATALOG: Definition[] = [
   },
   {
     id: "gallery",
+    collections: { items: { ...GALLERY_ITEMS, legacy: { prop: "items", keys: ["title", "category"] } } },
     name: "작업 갤러리",
     category: "화면 구역",
     description: "이미지 자리와 제목으로 작품 소개",

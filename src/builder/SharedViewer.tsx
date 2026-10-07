@@ -117,6 +117,7 @@ export default function SharedViewer() {
       )}
       {project ? (
         <section className="builder-canvas">
+          {Object.keys(project.assets).length > 0 && <p className="b-notice">이 설계에는 브라우저에 보관된 미디어가 있습니다. 원본이 보이지 않으면 작성자에게 자산 포함 ZIP을 받아 스튜디오에서 여세요.</p>}
           <div className="builder-canvas-toolbar">
             <div className="b-canvas-breadcrumb">
               <b>{project.name}</b>
@@ -154,6 +155,7 @@ export default function SharedViewer() {
             </div>
           </div>
           <PreviewFrame
+            fitViewport
             project={project}
             pageId={pageId}
             viewport={viewport}

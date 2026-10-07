@@ -1,14 +1,31 @@
 import { EXTENDED_CATALOG } from "./extended-catalog";
+import { MORE_CATALOG, type Recipe } from "./more-catalog";
+import { ADVANCED_CATALOG } from "./advanced-catalog";
+import { BLOCK_PRESETS } from "./block-presets";
+import { MEDIA_CATALOG } from "./media-catalog";
+import { STORY_CATALOG } from "./story-catalog";
+import { SCENE_CATALOG } from "./scene-catalog";
+import type { Asset } from "./asset-model";
+import type { Layout } from "./model";
 
 export type Field = {
   key: string;
   label: string;
-  type: "text" | "textarea" | "number" | "toggle" | "select";
+  type: "text" | "textarea" | "number" | "toggle" | "select" | "asset" | "node-ref" | "item-ref" | "rich";
+  refCollection?: string;
+  assetKinds?: Asset["kind"][];
   options?: string[];
   min?: number;
   max?: number;
 };
 export type Prop = string | number | boolean;
+export type Collection = {
+  label: string;
+  fields: Field[];
+  defaults: Record<string, Prop>;
+  initial?: Record<string, Prop>[];
+  legacy?: { prop: string; keys: string[] };
+};
 export type Definition = {
   id: string;
   name: string;
@@ -17,6 +34,12 @@ export type Definition = {
   container?: boolean;
   defaults: Record<string, Prop>;
   fields: Field[];
+  /** Fields introduced after existing documents; omission preserves old behavior. */
+  optionalProps?: string[];
+  initialLayout?: Partial<Layout>;
+  recipe?: Recipe[];
+  source?: string;
+  collections?: Record<string, Collection>;
 };
 const text = (key: string, label: string): Field => ({
   key,
@@ -37,6 +60,50 @@ const choice = (key: string, label: string, options: string[]): Field => ({
 const titleBody = [text("title", "제목"), lines("body", "설명")];
 
 export const CATALOG: Definition[] = [
+  {
+    id: "decoration",
+    name: "장식 요소",
+    category: "기본 요소",
+    description: "히어로 그래픽과 아이콘 장식",
+    defaults: {
+      kind: "hero",
+      icon: "layers",
+      text: "작은 시작, 큰 변화",
+      detail: "+128% ↗",
+    },
+    fields: [
+      choice("kind", "장식 종류", ["hero", "icon", "eyebrow", "stat-detail"]),
+      text("icon", "아이콘"),
+      text("text", "문구"),
+      text("detail", "보조 문구"),
+    ],
+  },
+  {
+    id: "frame",
+    name: "자유 배치 영역",
+    category: "구조",
+    description: "PPT처럼 요소를 원하는 위치에 놓는 영역",
+    container: true,
+    defaults: {},
+    fields: [],
+  },
+  {
+    id: "group",
+    name: "그룹",
+    category: "구조",
+    description: "여러 요소를 함께 이동하고 편집",
+    container: true,
+    defaults: {},
+    fields: [],
+  },
+  {
+    id: "shape",
+    name: "도형",
+    category: "기본 요소",
+    description: "사각형·원·선으로 화면을 꾸미기",
+    defaults: { kind: "rectangle" },
+    fields: [choice("kind", "도형 종류", ["rectangle", "ellipse", "line"])],
+  },
   {
     id: "page",
     name: "페이지",
@@ -186,7 +253,7 @@ export const CATALOG: Definition[] = [
     description: "비율을 유지하는 이미지",
     defaults: { src: "", alt: "이미지 설명", ratio: "16/9" },
     fields: [
-      text("src", "HTTPS 이미지 URL"),
+      { key: "src", label: "이미지", type: "asset", assetKinds: ["image"] },
       text("alt", "대체 텍스트"),
       choice("ratio", "비율", ["16/9", "4/3", "1/1", "3/4"]),
     ],
@@ -419,8 +486,27 @@ export const CATALOG: Definition[] = [
     ],
   },
   ...EXTENDED_CATALOG,
+  ...MORE_CATALOG,
+  ...ADVANCED_CATALOG,
+  ...BLOCK_PRESETS,
+  ...MEDIA_CATALOG,
+  ...STORY_CATALOG,
+  ...SCENE_CATALOG,
 ];
 export const DEFINITIONS = Object.fromEntries(
   CATALOG.map((item) => [item.id, item]),
 );
-export const CATEGORIES = ["전체", "기본 요소", "패턴", "화면 구역", "구조"];
+export const CATEGORIES = [
+  "전체",
+  "기본 요소",
+  "패턴",
+  "화면 구역",
+  "구조",
+  "입력·폼",
+  "탐색",
+  "데이터",
+  "커머스",
+  "콘텐츠",
+  "미디어",
+  "장면",
+];

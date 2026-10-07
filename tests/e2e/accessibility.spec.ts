@@ -14,7 +14,7 @@ for (const screen of ["workspace", "editor", "theme", "handoff", "versions"]) {
         .click();
       await expect(
         page
-          .frameLocator("iframe")
+          .frameLocator('iframe[title="디자인 미리보기"]')
           .getByRole("heading", { name: /좋은 아이디어가/ }),
       ).toBeVisible();
     }

@@ -1,4 +1,5 @@
 import { memo, type ReactNode } from "react";
+import { MORE_CATALOG } from "./more-catalog";
 
 const ink = "#3f3b55",
   accent = "#7563d7",
@@ -60,7 +61,120 @@ const picture = (x = 23, y = 18, w = 114, h = 64) => (
 );
 
 function sample(id: string): ReactNode {
+  const extra = MORE_CATALOG.find((item) => item.id === id);
+  if (extra?.recipe) {
+    const form = extra.category === "입력·폼",
+      data = extra.category === "데이터",
+      shop = extra.category === "커머스";
+    return (
+      <>
+        {box(15, 10, 130, 80)}
+        {label(extra.name, 24, 27, 9, ink, 650)}
+        {form ? (
+          <>
+            {box(25, 35, 110, 12, soft)}
+            {box(25, 53, 110, 12, soft)}
+            {box(25, 71, 65, 12, accent)}
+          </>
+        ) : data ? (
+          <>
+            {[0, 1, 2].map((i) => (
+              <g key={i}>
+                {box(25 + i * 37, 37, 30, 16, soft)}
+                {box(25 + i * 37, 59, 30, 21, i === 1 ? accent : soft)}
+              </g>
+            ))}
+          </>
+        ) : shop ? (
+          <>
+            {box(25, 36, 43, 41, soft)}
+            {rule(78, 42, 50)}
+            {rule(78, 52, 35)}
+            {box(78, 65, 45, 12, accent)}
+          </>
+        ) : (
+          <>
+            {box(25, 36, 110, 24, soft)}
+            {rule(25, 69, 70)}
+            {box(108, 68, 27, 12, accent)}
+          </>
+        )}
+      </>
+    );
+  }
+  if (extra)
+    return (
+      <>
+        {box(24, 22, 112, 56, soft)}
+        {label(extra.name, 34, 47, 12, ink, 650)}
+        {id === "rating" ? (
+          label("★★★★★", 35, 68, 15, accent)
+        ) : (
+          <>
+            {rule(34, 61, 60)}
+            {box(105, 54, 22, 15, accent)}
+          </>
+        )}
+      </>
+    );
   switch (id) {
+    case "frame":
+    case "group":
+      return (
+        <>
+          {box(16, 12, 128, 76, "white", 5)}
+          {box(27, 24, 66, 18, soft)}
+          {box(71, 46, 56, 32, accent)}
+          <rect
+            x="23"
+            y="20"
+            width="108"
+            height="62"
+            fill="none"
+            stroke={accent}
+            strokeDasharray={id === "group" ? "4 3" : undefined}
+          />
+          {[
+            [23, 20],
+            [131, 20],
+            [23, 82],
+            [131, 82],
+          ].map(([x, y]) => (
+            <rect
+              key={`${x}-${y}`}
+              x={x - 3}
+              y={y - 3}
+              width="6"
+              height="6"
+              fill="white"
+              stroke={accent}
+            />
+          ))}
+          {label("자유롭게", 32, 37, 9)}
+        </>
+      );
+    case "shape":
+      return (
+        <>
+          {box(26, 23, 51, 51, soft, 5)}
+          <circle cx="102" cy="50" r="27" fill={accent} />
+          <path d="M31 82h96" stroke={ink} strokeWidth="2" />
+        </>
+      );
+    case "decoration":
+      return (
+        <>
+          {box(23, 20, 114, 61, soft, 12)}
+          {box(40, 32, 76, 39, "white", 6)}
+          <path
+            d="M48 61l16-13 14 6 28-17"
+            fill="none"
+            stroke={accent}
+            strokeWidth="3"
+          />
+          {label("+128%", 82, 85, 9, accent)}
+        </>
+      );
     case "section":
       return (
         <>

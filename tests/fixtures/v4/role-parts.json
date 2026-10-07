@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 4,
+  "id": "project-ed6080ee-b434-47dc-b8a7-aefbf3871638",
+  "name": "새 프로젝트",
+  "revision": 0,
+  "updatedAt": "2026-10-07T00:21:58.811Z",
+  "pages": [
+    {
+      "id": "page-28f39fdd-88a8-461f-87be-e1250d555809",
+      "name": "홈",
+      "slug": "/",
+      "rootId": "node-eceacbda-7b29-4f7d-8d00-6e7b6787345c"
+    }
+  ],
+  "nodes": {
+    "node-eceacbda-7b29-4f7d-8d00-6e7b6787345c": {
+      "id": "node-eceacbda-7b29-4f7d-8d00-6e7b6787345c",
+      "component": "page",
+      "name": "페이지",
+      "children": [
+        "node-22993140-ab29-45c4-a3b0-4b334e83d400"
+      ],
+      "props": {},
+      "layout": {
+        "mode": "flow",
+        "x": 0,
+        "y": 0,
+        "heightMode": "auto",
+        "height": 240,
+        "rotation": 0,
+        "ratioLocked": false,
+        "clip": false,
+        "anchorX": "start",
+        "anchorY": "start",
+        "basisWidth": 1440,
+        "basisHeight": 920,
+        "fillColor": "",
+        "textColor": "",
+        "strokeColor": "",
+        "strokeWidth": 0,
+        "cornerRadius": -1,
+        "opacity": 1,
+        "shadow": "inherit",
+        "fontSize": 0,
+        "fontWeight": 0,
+        "lineHeight": 0,
+        "letterSpacing": 0,
+        "textAlign": "inherit",
+        "imageFit": "cover",
+        "imageX": 50,
+        "imageY": 50,
+        "direction": "column",
+        "columns": 1,
+        "gap": 24,
+        "padding": 0,
+        "maxWidth": 1120,
+        "align": "stretch",
+        "justify": "start",
+        "wrap": false,
+        "widthMode": "auto",
+        "width": 240,
+        "span": 1,
+        "margin": 0,
+        "minHeight": 0
+      },
+      "responsive": {},
+      "hidden": false,
+      "locked": false
+    },
+    "node-22993140-ab29-45c4-a3b0-4b334e83d400": {
+      "id": "node-22993140-ab29-45c4-a3b0-4b334e83d400",
+      "component": "button",
+      "name": "버튼",
+      "children": [],
+      "props": {
+        "label": "시작하기",
+        "variant": "primary",
+        "state": "default",
+        "href": ""
+      },
+      "layout": {
+        "mode": "flow",
+        "x": 0,
+        "y": 0,
+        "heightMode": "auto",
+        "height": 240,
+        "rotation": 0,
+        "ratioLocked": false,
+        "clip": false,
+        "anchorX": "start",
+        "anchorY": "start",
+        "basisWidth": 1440,
+        "basisHeight": 920,
+        "fillColor": "",
+        "textColor": "",
+        "strokeColor": "",
+        "strokeWidth": 0,
+        "cornerRadius": -1,
+        "opacity": 1,
+        "shadow": "inherit",
+        "fontSize": 0,
+        "fontWeight": 0,
+        "lineHeight": 0,
+        "letterSpacing": 0,
+        "textAlign": "inherit",
+        "imageFit": "cover",
+        "imageX": 50,
+        "imageY": 50,
+        "direction": "column",
+        "columns": 1,
+        "gap": 24,
+        "padding": 0,
+        "maxWidth": 1120,
+        "align": "stretch",
+        "justify": "start",
+        "wrap": false,
+        "widthMode": "auto",
+        "width": 240,
+        "span": 1,
+        "margin": 0,
+        "minHeight": 0
+      },
+      "responsive": {},
+      "hidden": false,
+      "locked": false,
+      "appearance": {
+        "renderer": "shadcn",
+        "family": "outline"
+      },
+      "parts": {
+        "slot.action": {
+          "layout": {
+            "fillColor": "#eeeeff",
+            "cornerRadius": 18
+          },
+          "responsive": {}
+        }
+      }
+    }
+  },
+  "theme": {
+    "name": "올리브 스튜디오",
+    "mode": "light",
+    "light": {
+      "background": "#fbfaf8",
+      "surface": "#ffffff",
+      "foreground": "#24262b",
+      "muted": "#686c76",
+      "border": "#e4e3e0",
+      "primary": "#536448",
+      "onPrimary": "#ffffff",
+      "soft": "#eaf0e5"
+    },
+    "dark": {
+      "background": "#15171b",
+      "surface": "#202329",
+      "foreground": "#f4f5f7",
+      "muted": "#a7aebc",
+      "border": "#383e48",
+      "primary": "#b5cc9e",
+      "onPrimary": "#202a19",
+      "soft": "#293426"
+    },
+    "radius": 16,
+    "density": 1,
+    "font": "sans"
+  }
+}

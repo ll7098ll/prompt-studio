@@ -1,3 +1,4 @@
+import type { PackTypography, PackSurface, PackMotion, PACK_IDS } from "./design-pack-schema";
 export type Colors = {
   background: string;
   surface: string;
@@ -16,6 +17,13 @@ export type Theme = {
   radius: number;
   density: number;
   font: "sans" | "serif" | "mono";
+  headingFont?: "sans" | "serif" | "mono";
+  bodyFontAsset?: string;
+  headingFontAsset?: string;
+  typography?: PackTypography;
+  surface?: PackSurface;
+  motion?: PackMotion;
+  packSources?: Partial<Record<"colors" | "typography" | "surface" | "motion", typeof PACK_IDS[number]>>;
 };
 const dark: Colors = {
   background: "#15171b",
@@ -318,7 +326,22 @@ export function themeVariables(theme: Theme): Record<string, string> {
     ),
     "--ui-radius": `${theme.radius}px`,
     "--ui-space": `${24 * theme.density}px`,
-    "--ui-font": FONT_STACKS[theme.font],
+    "--ui-font": theme.bodyFontAsset ? `"StudioAsset_${theme.bodyFontAsset}", ${FONT_STACKS[theme.font]}` : FONT_STACKS[theme.font],
+    "--ui-heading-font": theme.headingFontAsset ? `"StudioAsset_${theme.headingFontAsset}", ${FONT_STACKS[theme.headingFont ?? theme.font]}` : FONT_STACKS[theme.headingFont ?? theme.font],
+    "--ui-numeric-font": FONT_STACKS[theme.typography?.numericFont ?? "sans"],
+    ...(theme.typography ? {
+      "--pack-body-size": `${theme.typography.bodySize}px`,
+      "--pack-body-leading": String(theme.typography.bodyLineHeight),
+      "--pack-heading-size": `clamp(${theme.typography.headingMin}px, 6.2vw, ${theme.typography.headingMax}px)`,
+      "--pack-heading-weight": String(theme.typography.headingWeight),
+      "--pack-heading-leading": String(theme.typography.headingLineHeight),
+      "--pack-heading-tracking": `${theme.typography.headingTracking}em`,
+    } : {}),
+    ...(theme.surface ? {
+      "--pack-shadow": { none: "none", soft: "0 8px 24px #0000000d", offset: "5px 5px 0 color-mix(in srgb,var(--ui-foreground) 16%,transparent)", float: "0 24px 64px #13274416" }[theme.surface.shadow],
+      "--pack-border-style": theme.surface.border,
+    } : {}),
+    ...(theme.motion ? { "--pack-motion-duration": `${theme.motion.duration}s` } : {}),
   };
 }
 export function themeCSS(theme: Theme): string {

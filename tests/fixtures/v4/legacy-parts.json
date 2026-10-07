@@ -1,0 +1,166 @@
+{
+  "schemaVersion": 4,
+  "id": "project-bde45ebf-97b8-412d-a280-a3f5a434976a",
+  "name": "새 프로젝트",
+  "revision": 0,
+  "updatedAt": "2026-10-07T00:21:58.811Z",
+  "pages": [
+    {
+      "id": "page-bbf3ab07-9c8d-4760-89b8-c846af8eb71b",
+      "name": "홈",
+      "slug": "/",
+      "rootId": "node-01992fc3-281e-404a-82b2-9cabf0b77e6a"
+    }
+  ],
+  "nodes": {
+    "node-01992fc3-281e-404a-82b2-9cabf0b77e6a": {
+      "id": "node-01992fc3-281e-404a-82b2-9cabf0b77e6a",
+      "component": "page",
+      "name": "페이지",
+      "children": [
+        "node-c99d45f5-0df1-419d-8b6d-09d3cf9d5882"
+      ],
+      "props": {},
+      "layout": {
+        "mode": "flow",
+        "x": 0,
+        "y": 0,
+        "heightMode": "auto",
+        "height": 240,
+        "rotation": 0,
+        "ratioLocked": false,
+        "clip": false,
+        "anchorX": "start",
+        "anchorY": "start",
+        "basisWidth": 1440,
+        "basisHeight": 920,
+        "fillColor": "",
+        "textColor": "",
+        "strokeColor": "",
+        "strokeWidth": 0,
+        "cornerRadius": -1,
+        "opacity": 1,
+        "shadow": "inherit",
+        "fontSize": 0,
+        "fontWeight": 0,
+        "lineHeight": 0,
+        "letterSpacing": 0,
+        "textAlign": "inherit",
+        "imageFit": "cover",
+        "imageX": 50,
+        "imageY": 50,
+        "direction": "column",
+        "columns": 1,
+        "gap": 24,
+        "padding": 0,
+        "maxWidth": 1120,
+        "align": "stretch",
+        "justify": "start",
+        "wrap": false,
+        "widthMode": "auto",
+        "width": 240,
+        "span": 1,
+        "margin": 0,
+        "minHeight": 0
+      },
+      "responsive": {},
+      "hidden": false,
+      "locked": false
+    },
+    "node-c99d45f5-0df1-419d-8b6d-09d3cf9d5882": {
+      "id": "node-c99d45f5-0df1-419d-8b6d-09d3cf9d5882",
+      "component": "gallery",
+      "name": "작업 갤러리",
+      "children": [],
+      "props": {
+        "title": "선택한 작업들",
+        "items": "브랜드 아이덴티티|Branding\n새로운 시선|Digital\n일상의 발견|Editorial"
+      },
+      "layout": {
+        "mode": "flow",
+        "x": 0,
+        "y": 0,
+        "heightMode": "auto",
+        "height": 240,
+        "rotation": 0,
+        "ratioLocked": false,
+        "clip": false,
+        "anchorX": "start",
+        "anchorY": "start",
+        "basisWidth": 1440,
+        "basisHeight": 920,
+        "fillColor": "",
+        "textColor": "",
+        "strokeColor": "",
+        "strokeWidth": 0,
+        "cornerRadius": -1,
+        "opacity": 1,
+        "shadow": "inherit",
+        "fontSize": 0,
+        "fontWeight": 0,
+        "lineHeight": 0,
+        "letterSpacing": 0,
+        "textAlign": "inherit",
+        "imageFit": "cover",
+        "imageX": 50,
+        "imageY": 50,
+        "direction": "column",
+        "columns": 1,
+        "gap": 24,
+        "padding": 0,
+        "maxWidth": 1120,
+        "align": "stretch",
+        "justify": "start",
+        "wrap": false,
+        "widthMode": "auto",
+        "width": 240,
+        "span": 1,
+        "margin": 0,
+        "minHeight": 0
+      },
+      "responsive": {},
+      "hidden": false,
+      "locked": false,
+      "parts": {
+        "p.0.1.0.2": {
+          "text": "이전 편집 문구",
+          "layout": {
+            "textColor": "#aa1122"
+          },
+          "responsive": {
+            "desktop": {
+              "fontSize": 28
+            }
+          }
+        }
+      }
+    }
+  },
+  "theme": {
+    "name": "올리브 스튜디오",
+    "mode": "light",
+    "light": {
+      "background": "#fbfaf8",
+      "surface": "#ffffff",
+      "foreground": "#24262b",
+      "muted": "#686c76",
+      "border": "#e4e3e0",
+      "primary": "#536448",
+      "onPrimary": "#ffffff",
+      "soft": "#eaf0e5"
+    },
+    "dark": {
+      "background": "#15171b",
+      "surface": "#202329",
+      "foreground": "#f4f5f7",
+      "muted": "#a7aebc",
+      "border": "#383e48",
+      "primary": "#b5cc9e",
+      "onPrimary": "#202a19",
+      "soft": "#293426"
+    },
+    "radius": 16,
+    "density": 1,
+    "font": "sans"
+  }
+}

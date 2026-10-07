@@ -23,14 +23,12 @@ test("an offscreen element in a large page remains selectable and editable", asy
   project.nodes[table.id] = table;
   root.children.splice(1, 0, table.id);
   await page.goto("/");
-  await page
-    .locator('input[type="file"]')
-    .setInputFiles({
-      name: "large.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(project)),
-    });
-  const frame = page.frameLocator("iframe");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "large.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  const frame = page.frameLocator('iframe[title="디자인 미리보기"]');
   const last = frame.getByText("긴 페이지 내용 198", { exact: true });
   await last.scrollIntoViewIfNeeded();
   await last.click();
@@ -59,12 +57,12 @@ test("preset gallery filters, previews both widths and opens an editable copy", 
   await page
     .getByRole("button", { name: "스토어·콘텐츠", exact: true })
     .click();
-  await expect(page.locator(".workspace-template")).toHaveCount(3);
+  await expect(page.locator(".workspace-template")).toHaveCount(TEMPLATES.filter(template => template.category === '스토어·콘텐츠').length);
   await page
     .getByRole("button", { name: "에디토리얼 포트폴리오 크게 보기" })
     .click();
   const modal = page.getByRole("dialog");
-  const frame = modal.frameLocator("iframe");
+  const frame = modal.frameLocator('iframe[title="디자인 미리보기"]');
   await expect(
     frame.getByRole("heading", { name: /오래 바라보는 것들/ }),
   ).toBeVisible();
@@ -73,7 +71,7 @@ test("preset gallery filters, previews both widths and opens an editable copy", 
     .poll(() => frame.locator("body").evaluate(() => innerWidth))
     .toBe(390);
   await modal.getByRole("button", { name: "이 프리셋으로 시작" }).click();
-  const editorFrame = page.frameLocator("iframe");
+  const editorFrame = page.frameLocator('iframe[title="디자인 미리보기"]');
   await editorFrame
     .getByRole("heading", { name: /오래 바라보는 것들/ })
     .click();
@@ -97,12 +95,21 @@ test("every catalog tile has a visual example and large preview inserts its real
     .locator(".workspace-template")
     .filter({ hasText: "빈 페이지" })
     .click();
-  await expect(page.locator(".b-component-thumbnail")).toHaveCount(
+  await expect(page.locator(".b-live-thumbnail")).toHaveCount(24);
+  while (await page.getByRole("button", { name: /더 보기 ·/ }).count()) {
+    const previous = await page.locator(".b-live-thumbnail").count();
+    await page.getByRole("button", { name: /더 보기 ·/ }).click();
+    await expect(page.locator(".b-live-thumbnail")).toHaveCount(
+      Math.min(CATALOG.length - 1, previous + 24),
+    );
+  }
+  await expect(page.locator(".b-live-thumbnail")).toHaveCount(
     CATALOG.length - 1,
   );
+  await page.getByLabel("컴포넌트 검색").fill("팝업 창");
   await page.getByRole("button", { name: "팝업 창 미리보기" }).click();
   const modal = page.getByRole("dialog");
-  const demo = modal.frameLocator("iframe");
+  const demo = modal.frameLocator('iframe[title="디자인 미리보기"]');
   const open = demo.getByRole("button", { name: "자세히 보기", exact: true });
   await open.click();
   await expect(demo.getByRole("dialog")).toBeVisible();
@@ -111,7 +118,9 @@ test("every catalog tile has a visual example and large preview inserts its real
   await expect(open).toBeFocused();
   await modal.getByRole("button", { name: "이 요소 추가" }).click();
   await expect(
-    page.frameLocator("iframe").locator('[data-component="dialog"]'),
+    page
+      .frameLocator('iframe[title="디자인 미리보기"]')
+      .locator('[data-component="dialog"]'),
   ).toHaveCount(1);
 });
 
@@ -137,7 +146,7 @@ test("extended controls work independently and all components render without pag
     buffer: Buffer.from(JSON.stringify(project)),
   });
   await page.getByRole("button", { name: "미리보기", exact: true }).click();
-  const frame = page.frameLocator("iframe");
+  const frame = page.frameLocator('iframe[title="디자인 미리보기"]');
   await expect(frame.locator("[data-component]")).toHaveCount(
     root.children.length + 1,
   );
@@ -162,7 +171,7 @@ test("extended controls work independently and all components render without pag
   const radio = frame.locator('[data-component="radio"]');
   await radio.getByRole("radio", { name: "개발" }).check();
   await expect(radio.getByRole("radio", { name: "디자인" })).not.toBeChecked();
-  const range = frame.getByRole("slider");
+  const range = frame.locator('[data-component="range"]').getByRole("slider");
   await range.focus();
   await range.press("ArrowRight");
   await expect(range).toHaveValue("61");
@@ -197,6 +206,27 @@ test("extended controls work independently and all components render without pag
   await chat.getByRole("button", { name: "보내기" }).click();
   await expect(chat.getByRole("log")).toContainText("샘플 응답입니다");
   await expect(chat.getByLabel("보낼 메시지")).toHaveValue("");
+  const rating = frame.locator('[data-component="rating"]');
+  await rating.getByRole("radio", { name: "2점", exact: true }).check();
+  await expect(rating.locator("output")).toHaveText("2/5");
+  const segmented = frame.locator('[data-component="segmented"]');
+  await segmented.getByRole("button", { name: "완료", exact: true }).click();
+  await expect(
+    segmented.getByRole("button", { name: "완료", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  const tags = frame.locator('[data-component="tag-input"]');
+  await tags.getByRole("textbox").fill("협업");
+  await tags.getByRole("textbox").press("Enter");
+  await expect(tags.getByRole("button", { name: "협업 삭제" })).toBeVisible();
+  await tags.getByRole("button", { name: "협업 삭제" }).click();
+  await expect(tags.getByRole("button", { name: "협업 삭제" })).toHaveCount(0);
+  const file = frame.locator('[data-component="file-upload"]');
+  await file.locator('input[type="file"]').setInputFiles({
+    name: "sample.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("preview"),
+  });
+  await expect(file.getByRole("listitem")).toHaveText("sample.txt");
   expect(errors).toEqual([]);
 });
 
@@ -209,7 +239,7 @@ test("custom viewport follows breakpoint boundaries independently of zoom and PN
     .locator(".workspace-template")
     .filter({ hasText: "브랜드 랜딩" })
     .click();
-  const frame = page.frameLocator("iframe");
+  const frame = page.frameLocator('iframe[title="디자인 미리보기"]');
   for (const [width, columns] of [
     [767, 1],
     [768, 2],
@@ -279,7 +309,7 @@ test("fixed and fill widths, wrapping and grid spans produce the specified geome
     mimeType: "application/json",
     buffer: Buffer.from(JSON.stringify(project)),
   });
-  const frame = page.frameLocator("iframe");
+  const frame = page.frameLocator('iframe[title="디자인 미리보기"]');
   const width = (id: string) =>
     frame
       .locator(`[id="${id}"]`)

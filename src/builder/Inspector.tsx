@@ -25,6 +25,9 @@ import {
 } from "./model";
 import { THEME_PRESETS, type Colors } from "./theme";
 import NumberInput from "./NumberInput";
+import { AssetField } from "./AssetPanel";
+import ContentItemsPanel from "./ContentItemsPanel";
+import DesignPackPanel from "./DesignPackPanel";
 
 export function ThemePanel({
   project,
@@ -47,6 +50,7 @@ export function ThemePanel({
   };
   return (
     <div className="builder-panel-content">
+      <DesignPackPanel project={project} commit={commit} />
       <div className="b-section-title">
         테마 컬렉션 <span>{THEME_PRESETS.length}</span>
       </div>
@@ -187,6 +191,9 @@ export function ThemePanel({
           <option value="mono">모노 · 정교하게</option>
         </select>
       </label>
+      <label className="b-field">제목 서체<select aria-label="제목 서체" value={theme.headingFont ?? theme.font} onChange={e => commit(editProject(project, next => { next.theme.headingFont = e.target.value as typeof theme.font; }))}><option value="sans">산세리프</option><option value="serif">세리프</option><option value="mono">모노</option></select></label>
+      {([['bodyFontAsset', '본문 사용자 서체'], ['headingFontAsset', '제목 사용자 서체']] as const).map(([key, label]) => <label key={key} className="b-field">{label}<select aria-label={label} value={theme[key] ?? ""} onChange={e => commit(editProject(project, next => { if (e.target.value) next.theme[key] = e.target.value; else delete next.theme[key]; }))}><option value="">기본 서체 사용</option>{Object.values(project.assets).filter(a => a.kind === "font").map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>)}
+      <p className="b-help">자산 탭에서 WOFF2 파일을 등록하면 제목과 본문에 각각 적용할 수 있습니다. 없는 한글 글자는 기본 서체로 표시됩니다.</p>
     </div>
   );
 }
@@ -361,7 +368,10 @@ export default function Inspector({
         {definition.fields.length > 0 && (
           <div className="b-section-title">콘텐츠</div>
         )}
-        {definition.fields.map((field) => (
+        {Object.entries(definition.collections ?? {}).map(([key, collection]) => <ContentItemsPanel key={key} project={project} nodeId={node.id} collectionKey={key} collection={collection} commit={commit}/>)}
+        {definition.fields.filter(field => !Object.entries(definition.collections ?? {}).some(([key, collection]) => node.content?.[key] && collection.legacy?.prop === field.key)).map((field) => field.type === "asset" ? (
+          <AssetField key={field.key} project={project} nodeId={node.id} field={field} commit={commit} />
+        ) : (
           <label
             className={`b-field ${field.type === "toggle" ? "b-field-toggle" : ""}`}
             key={field.key}

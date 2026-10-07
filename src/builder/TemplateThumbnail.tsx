@@ -8,7 +8,7 @@ export default function TemplateThumbnail({
   id: string;
   name: string;
 }) {
-  if (id === "blank")
+  if (id === "blank" || id === "free-canvas")
     return (
       <div className="mini-blank">
         <Plus size={28} strokeWidth={1} />

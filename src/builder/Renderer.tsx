@@ -1,4 +1,20 @@
 "use client";
+import { designStyle } from "./design-style";
+import ComponentParts from "./component-parts";
+import MoreContent from "./MoreContent";
+import { MORE_CATALOG } from "./more-catalog";
+import AdvancedContent from "./AdvancedContent";
+import ShadcnContent, { SHADCN_COMPONENTS } from "./ShadcnContent";
+import { NEW_COMPONENT_IDS } from "./visual-presets";
+import { PreviewEnvironment } from "./vendor/shadcn/environment";
+import { Card } from "./vendor/shadcn/card";
+import { AssetProvider, useAssetSource } from "./AssetProvider";
+import type { AssetSession } from "./asset-repository";
+import MediaContent from "./MediaContent";
+import ImageContent from "./ImageContent";
+import StoryContent from "./StoryContent";
+import MotionPlayback from "./MotionPlayback";
+import { motionVariables, resolveMotion } from "./motion-settings";
 /* eslint-disable @next/next/no-img-element -- This renderer previews user-authored external images at their specified dimensions. */
 
 import {
@@ -171,11 +187,14 @@ function DataTable({ node }: { node: Node }) {
     desc: false,
   });
   const columns = value(node, "columns").split("|");
-  const rows = list(node.props.rows).map((row) => row.split("|"));
+  const rows = list(node.props.rows).map((row, index) => ({
+    cells: row.split("|"),
+    sourceIndex: index,
+  }));
   if (sort.col >= 0)
     rows.sort(
       (a, b) =>
-        (a[sort.col] ?? "").localeCompare(b[sort.col] ?? "", "ko", {
+        (a.cells[sort.col] ?? "").localeCompare(b.cells[sort.col] ?? "", "ko", {
           numeric: true,
         }) * (sort.desc ? -1 : 1),
     );
@@ -210,10 +229,21 @@ function DataTable({ node }: { node: Node }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
-                <tr key={i}>
+              {rows.map(({ cells: row, sourceIndex }) => (
+                <tr
+                  key={sourceIndex}
+                  data-part-path={`p.0.1.0.1.${sourceIndex}`}
+                >
                   {columns.map((_, j) => (
-                    <td key={j}>{row[j] ?? ""}</td>
+                    <td
+                      key={j}
+                      data-part-path={`p.0.1.0.1.${sourceIndex}.${j}`}
+                      data-text-prop="rows"
+                      data-text-row={sourceIndex}
+                      data-text-col={j}
+                    >
+                      {row[j] ?? ""}
+                    </td>
                   ))}
                 </tr>
               ))}
@@ -233,22 +263,23 @@ function DataTable({ node }: { node: Node }) {
   );
 }
 function ImageBlock({ node }: { node: Node }) {
-  const [failed, setFailed] = useState(false);
-  const src = value(node, "src");
+  const [failedSrc, setFailedSrc] = useState("");
+  const { src, pending, missing } = useAssetSource(value(node, "src"));
+  const failed = !!src && failedSrc === src;
   return (
     <div className="ui-image" style={{ aspectRatio: value(node, "ratio") }}>
-      {/^https:\/\//.test(src) && !failed ? (
+      {src && !failed ? (
         <img
           src={src}
           alt={value(node, "alt")}
-          onError={() => setFailed(true)}
+          onError={() => setFailedSrc(src)}
           style={{ aspectRatio: value(node, "ratio") }}
         />
       ) : (
         <div className="ui-placeholder" style={{ height: "100%" }}>
           <span>
             <ImageIcon size={26} />
-            {failed ? "이미지를 불러올 수 없습니다" : value(node, "alt")}
+            {pending ? "이미지를 불러오는 중…" : missing ? "원본 없음 · 자산 포함 ZIP을 가져오세요" : failed ? "이미지를 불러올 수 없습니다" : value(node, "alt")}
           </span>
         </div>
       )}
@@ -322,9 +353,75 @@ function Sidebar({ node }: { node: Node }) {
   );
 }
 
-function Content({ node }: { node: Node }): ReactNode {
+function Content({ node, preview }: { node: Node; preview: boolean }): ReactNode {
+  if (["scroll-chapters", "multi-step-form", "rich-text"].includes(node.component)) return <StoryContent node={node} />;
+  if (["image-lightbox", "image-compare", "image-hotspot"].includes(node.component) || (node.component === "gallery" && node.content?.items)) return <ImageContent node={node} preview={preview}/>;
+  if (["video-player", "audio-player"].includes(node.component))
+    return <MediaContent node={node} preview={preview} />;
+  if ((NEW_COMPONENT_IDS as readonly string[]).includes(node.component))
+    return <AdvancedContent node={node} />;
+  if (
+    node.appearance &&
+    (node.appearance.renderer === "shadcn" ||
+      (node.appearance.family && node.appearance.family !== "legacy")) &&
+    SHADCN_COMPONENTS.includes(node.component) &&
+    node.appearance.renderer !== "classic" &&
+    (node.appearance.renderer === "shadcn" ||
+      !Object.keys(node.parts ?? {}).some((key) => key.startsWith("p.")))
+  )
+    return <ShadcnContent node={node} />;
   const p = node.props;
   switch (node.component) {
+    case "decoration": {
+      const Icon = icons[p.icon as keyof typeof icons] ?? Sparkles;
+      if (p.kind === "icon")
+        return (
+          <div className="ui-feature-icon">
+            <Icon />
+          </div>
+        );
+      if (p.kind === "eyebrow")
+        return <span className="ui-eyebrow">{value(node, "text")}</span>;
+      if (p.kind === "stat-detail")
+        return (
+          <small>
+            <b style={{ color: "var(--ui-primary)", marginRight: 8 }}>
+              {value(node, "text")}
+            </b>
+            {value(node, "detail")}
+          </small>
+        );
+      return (
+        <div className="ui-art" aria-label="프로젝트 성장 지표 예시">
+          <div className="ui-orbit" />
+          <div className="ui-orbit" />
+          <div className="ui-orbit" />
+          <div className="ui-art-card">
+            <b>Your ideas, in motion.</b>
+            <small>A LITTLE PROGRESS, EVERY DAY.</small>
+            <div className="ui-art-line" />
+            <div className="ui-art-line" />
+            <div className="ui-art-chart">
+              {[30, 45, 38, 62, 55, 80, 96].map((height, i) => (
+                <i key={i} style={{ height: `${height}%` }} />
+              ))}
+            </div>
+          </div>
+          <div className="ui-art-chip">
+            {value(node, "text")}
+            <strong>{value(node, "detail")}</strong>
+          </div>
+        </div>
+      );
+    }
+    case "shape":
+      return (
+        <div
+          className="ui-shape"
+          data-kind={String(p.kind)}
+          aria-label={node.name}
+        />
+      );
     case "heading": {
       const Tag = p.level as "h1" | "h2" | "h3";
       return (
@@ -538,7 +635,11 @@ function Content({ node }: { node: Node }): ReactNode {
         </footer>
       );
     default:
-      return <ExtendedContent node={node} />;
+      return MORE_CATALOG.some((def) => def.id === node.component) ? (
+        <MoreContent key={JSON.stringify(node.props)} node={node} />
+      ) : (
+        <ExtendedContent node={node} />
+      );
   }
 }
 
@@ -547,7 +648,17 @@ function Content({ node }: { node: Node }): ReactNode {
 const NodeContent = memo(Content, (previous, next) => {
   const a = previous.node,
     b = next.node;
-  if (a.id !== b.id || a.component !== b.component) return false;
+  if (
+    previous.preview !== next.preview ||
+    a.id !== b.id ||
+    a.component !== b.component ||
+    JSON.stringify(a.content) !== JSON.stringify(b.content) ||
+    a.appearance?.family !== b.appearance?.family ||
+    a.appearance?.renderer !== b.appearance?.renderer ||
+    Object.keys(a.parts ?? {}).some((k) => k.startsWith("p.")) !==
+      Object.keys(b.parts ?? {}).some((k) => k.startsWith("p."))
+  )
+    return false;
   const keys = Object.keys(a.props);
   return (
     keys.length === Object.keys(b.props).length &&
@@ -560,25 +671,35 @@ export function Renderer({
   pageId,
   viewport,
   selected,
+  selectedIds,
   onSelect,
   preview = false,
+  capture = false,
+  assetSession,
 }: {
   project: Project;
   pageId: string;
   viewport: Viewport;
   selected?: string | null;
+  selectedIds?: string[];
   onSelect?: (id: string) => void;
   preview?: boolean;
+  capture?: boolean;
+  assetSession?: AssetSession;
 }) {
+  const [portalRoot, setPortalRoot] = useState<HTMLDivElement | null>(null);
   const page =
     project.pages.find((item) => item.id === pageId) ?? project.pages[0];
   function render(id: string, parent?: Node): ReactNode {
     const node = project.nodes[id];
     const layout = resolvedLayout(node, viewport);
+    const motion = resolveMotion(node, project.theme);
     if (layout.hidden) return null;
     const container = DEFINITIONS[node.component].container;
     const parentLayout = parent ? resolvedLayout(parent, viewport) : undefined;
     const style: CSSProperties = {
+      ...({ "--motion-opacity": layout.opacity } as CSSProperties),
+      ...motionVariables(motion),
       ...(container
         ? {
             display: node.component === "grid" ? "grid" : "flex",
@@ -633,20 +754,49 @@ export function Renderer({
             ...(layout.widthMode === "fill" ? { alignSelf: "stretch" } : {}),
           }
         : {}),
+      ...designStyle(layout, parentLayout?.mode === "free", !!container),
+      ...(node.component === "scroll-chapters" && node.props.sticky && parentLayout?.mode !== "free" ? { position: "sticky", top: Number(node.props.offset), zIndex: 5, alignSelf: "stretch" } : {}),
     };
+    const Element =
+      node.component === "card" &&
+      node.appearance?.family &&
+      node.appearance.family !== "legacy"
+        ? Card
+        : "div";
     return (
-      <div
+      <Element
         key={id}
         id={id}
         className={`ui-node ${container ? `ui-container ui-${node.component}` : ""}`}
         data-component={node.component}
+        data-family={node.appearance?.family}
+        data-motion={motion.preset}
+        data-motion-source={motion.source}
+        data-motion-mobile={motion.mobile}
         data-name={node.name}
-        data-selected={!preview && selected === id}
+        data-selected={
+          !preview && (selectedIds ? selectedIds.includes(id) : selected === id)
+        }
+        data-layout={layout.mode}
+        data-rotation={layout.rotation}
+        data-sized={layout.heightMode === "fixed"}
+        data-width-mode={layout.widthMode}
+        data-custom-fill={!!layout.fillColor}
+        data-custom-color={!!layout.textColor}
+        data-custom-stroke={!!layout.strokeColor || !!layout.strokeWidth}
+        data-custom-radius={layout.cornerRadius >= 0}
+        data-custom-shadow={layout.shadow !== "inherit"}
+        data-custom-font-size={!!layout.fontSize}
+        data-custom-font-weight={!!layout.fontWeight}
+        data-custom-line-height={!!layout.lineHeight}
+        data-custom-letter-spacing={!!layout.letterSpacing}
+        data-custom-text-align={layout.textAlign !== "inherit"}
         style={style}
         onClickCapture={
           preview
             ? undefined
             : (event) => {
+                if ((event.target as Element).closest("[data-studio-part-action]")) return;
                 const target = (
                   event.target as HTMLElement
                 ).closest<HTMLElement>(".ui-node");
@@ -668,17 +818,30 @@ export function Renderer({
             </div>
           ) : null
         ) : (
-          <NodeContent node={node} />
+          <ComponentParts node={node} viewport={viewport}>
+            <NodeContent node={node} preview={preview && !capture} />
+          </ComponentParts>
         )}
-      </div>
+      </Element>
     );
   }
   return (
-    <div
-      className={`ui-root ${preview ? "" : "ui-edit"}`}
-      style={themeVariables(project.theme) as CSSProperties}
-    >
-      {render(page.rootId)}
-    </div>
+    <AssetProvider assets={project.assets} session={assetSession} eager={capture}>
+    <PreviewEnvironment.Provider value={{ container: portalRoot }}>
+      <div
+        ref={setPortalRoot}
+        className={`ui-root ${preview ? "" : "ui-edit"} ${project.theme.mode === "dark" ? "studio-dark" : ""}`}
+        data-pack-type={!!project.theme.typography}
+        data-pack-surface={!!project.theme.surface}
+        data-pack-texture={project.theme.surface?.texture}
+        data-pack-mobile-motion={project.theme.motion?.mobile}
+        data-capture={capture}
+        style={themeVariables(project.theme) as CSSProperties}
+      >
+        {render(page.rootId)}
+        {preview && !capture && <MotionPlayback root={portalRoot} project={project} selectedIds={selectedIds}/>}
+      </div>
+    </PreviewEnvironment.Provider>
+    </AssetProvider>
   );
 }

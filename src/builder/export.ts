@@ -9,18 +9,44 @@ import {
 import { themeCSS } from "./theme";
 import { PREVIEW_CSS } from "./preview-css";
 import { themeTokens } from "./tokens";
+import shadcnSources from "./vendor/shadcn/sources.json";
+import { appendAssetsToZip } from "./project-archive";
+import { assetFontCSS } from "./asset-fonts";
+import { isRuntimeMotion, motionVariables, resolveMotion } from "./motion-settings";
 
 export function handoffSpec(project: Project) {
   const p = parseProject(project);
   const views: Viewport[] = ["mobile", "tablet", "desktop"];
   return {
     format: "prompt-studio-handoff",
-    version: 1,
-    rendererVersion: "2.1.0",
+    version: 3,
+    rendererVersion: "5.0.0",
+    assetRules: "asset:asset-<sha256>는 source.assets의 자산 메타데이터를 참조하며, 원본은 ZIP의 assets/<id>에 있다. JSON과 공유 링크에는 원본이 포함되지 않는다. 미디어 시작/종료는 초, end=0은 끝까지. 편집/PNG는 포스터, 미리보기는 실제 재생. 자동 재생 실패 시 기본 제어를 제공한다.",
     source: p,
     breakpoints: { mobile: 0, tablet: 768, desktop: 1024 },
     referenceWidths: { mobile: 390, tablet: 768, desktop: 1440 },
+    resolvedMotions: Object.fromEntries(Object.values(p.nodes).map(node => {
+      const motion = resolveMotion(node, p.theme);
+      return [node.id, { ...motion, cssVariables: motionVariables(motion), engine: isRuntimeMotion(motion.preset) ? "motion/mini" : "css", target: isRuntimeMotion(motion.preset) ? "inner leaf content; words only static heading/paragraph/blockquote text" : "node CSS animation; individual transform properties", still: "authored content, no animation; mobile<768 when mobile=still; always for edit/PNG/reduced-motion" }];
+    })),
     layoutRules: {
+      design:
+        "node.appearance.family는 legacy/minimal/soft/outline/brutal/editorial/glass/dark/colorful. renderer=classic은 과거 DOM 부분 경로 보존, shadcn은 공식 어댑터 사용. 사용자 layout 외형과 parts 수정이 디자인 기본값보다 우선한다.",
+      motion:
+        "resolvedMotions의 12개 기존 CSS 효과와 words/mask/parallax/scroll-zoom 4개 런타임 효과. appearance.motionSettings의 지정값이 테마·효과 기본값보다 우선한다. 시간·지연·단어 간격은 초, iterations=0은 계속 반복한다. scroll은 요소 아래 진입=0%/위로 완전히 벗어남=100%를 scrollStart/End로 정규화해 한 주기를 탐색한다. load/view/hover(포커스 포함)/press(키보드 포함) 시작 조건, view threshold/once를 재현한다. 편집·PNG·prefers-reduced-motion은 원래 콘텐츠의 정지 상태, 모바일은 개별 mobile 설정을 따른다. 화면 밖·백그라운드 일시 정지, 사용자 재생/정지/처음/탐색 제어를 제공한다. 새 4효과는 reference.css만으로 재생되지 않으며 내부 DOM에 Motion mini 또는 동등한 WAAPI 런타임을 구현해야 한다. 레이아웃 transform과 내부 부분 스타일을 보존하고 이벤트/관찰자/애니메이션/단어 임시 요소를 해제한다.",
+      parts:
+        "slot.title은 data-part-id/data-slot 역할, slot.<role>.child.0.1은 그 역할의 element children 경로다. 기존 p.0.1도 보존한다. parts.layout과 responsive는 방향별 padding/margin/모서리, fontFamily, display/overflow, Flex/Grid와 svgFill/svgStroke/svgStrokeWidth를 포함한다. 미지정 값은 원래 컴포넌트 스타일, fontFamily=body/heading/numeric은 테마 역할이다. attributes의 src는 이미지 자산 또는 HTTPS, alt/title/placeholder/href는 해당 DOM 속성이다. 파일·링크는 공통 콘텐츠이며 외형은 mobile→tablet→desktop 순서로 상속한다. 대화상자처럼 뒤늦게 열린 부분에도 수정값을 적용한다.",
+      designPack:
+        "theme.packSources는 채널별 출처이며 실제 값은 theme.light/dark, typography, surface, motion에 있다. typography.headingMin/headingMax는 6.2vw를 가운데 값으로 한 clamp 제목 크기다. surface.texture의 paper/dots/grid, shadow, border는 reference.css를 따른다. theme.motion은 heading/image/feature/stat의 미지정 모션에만 적용하고 node.appearance.motion(명시적 none 포함)이 우선한다. mobile=still은 768px 미만에서 기본 모션을 정지한다. PNG·움직임 감소에서는 항상 정지한다. 개별 부분의 CSS와 서체 자산은 팩보다 우선한다.",
+      mode: "flow는 기존 Flex/Grid 배치, free는 높이가 명시된 position:relative 부모 안의 position:absolute 자식. 자유 배치 자식은 margin·span·flex를 적용하지 않는다.",
+      coordinates:
+        "x/y는 부모 padding box 기준 CSS px. width/height·rotation·좌표에 theme.density나 편집기 확대율을 곱하지 않는다. 자식 배열 뒤쪽이 앞에 보인다.",
+      anchors:
+        "anchorX/Y start는 원래 좌표. end는 부모 크기-basis+좌표, center는 부모 크기/2+좌표-basis/2. stretch는 좌표 고정 및 크기=부모 크기-basis+원래 크기. scale은 좌표와 크기를 부모 크기/basis에 비례. 회전 중심은 요소 중심.",
+      appearance:
+        "fillColor/textColor/strokeColor는 #RRGGBB 또는 theme:토큰 참조. 비어 있으면 기본 테마. cornerRadius=-1, fontSize/fontWeight/lineHeight=0, shadow/textAlign=inherit는 기본값. 개별 외형은 자식 노드에 전파하지 않는다. imageFit과 imageX/Y(%)로 이미지 크롭·초점을 재현한다.",
+      editor:
+        "선택 테두리·핸들·안내선·확대·드래그 임시 상태는 UI 결과물에 포함하지 않는다.",
       widthMode: {
         auto: "컴포넌트 기본값",
         content: "fit-content, flex:0 0 auto",
@@ -81,15 +107,28 @@ export async function exportBundle(
   const zip = new JSZip();
   zip.file("PROMPT.md", generatePrompt(project));
   zip.file("project.json", JSON.stringify(project, null, 2));
+  await appendAssetsToZip(zip, project);
   zip.file("ui-spec.json", JSON.stringify(spec, null, 2));
-  zip.file("theme.css", themeCSS(project.theme));
+  zip.file("theme.css", assetFontCSS(project.assets, id => `./assets/${id}`) + "\n" + themeCSS(project.theme));
   zip.file("theme.json", JSON.stringify(project.theme, null, 2));
   zip.file(
     "theme.tokens.json",
     JSON.stringify(themeTokens(project.theme), null, 2),
   );
   zip.file("component-specs.json", JSON.stringify(spec.components, null, 2));
-  zip.file("reference.css", PREVIEW_CSS);
+  let componentCSS = "";
+  if (typeof window !== "undefined") {
+    const response = await fetch(
+      new URL("/studio-ui.css", window.location.href),
+    );
+    if (!response.ok)
+      throw Error(
+        "컴포넌트 스타일을 읽지 못했습니다. 다시 내보내기를 시도하세요.",
+      );
+    componentCSS = await response.text();
+  }
+  zip.file("reference.css", componentCSS + "\n" + PREVIEW_CSS);
+  zip.file("component-sources.json", JSON.stringify(shadcnSources, null, 2));
   for (const [path, data] of Object.entries(screenshots))
     zip.file(`screenshots/${path}`, data.split(",")[1], { base64: true });
   zip.file(
@@ -120,7 +159,7 @@ export async function exportBundle(
     JSON.stringify(
       {
         formatVersion: 1,
-        rendererVersion: "2.1.0",
+        rendererVersion: "5.0.0",
         projectId: project.id,
         revision: project.revision,
         themeMode: project.theme.mode,

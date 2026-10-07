@@ -1,0 +1,102 @@
+{
+  "afternoon": {
+    "path": "/studio-assets/room-afternoon.png",
+    "asset": {
+      "id": "asset-cb1f64b6a02d63221935753b658d7a32ad2d9a181f2b88687ec7e395705966e5",
+      "name": "빛이 머무는 오후",
+      "kind": "image",
+      "mime": "image/png",
+      "bytes": 2511748,
+      "sha256": "cb1f64b6a02d63221935753b658d7a32ad2d9a181f2b88687ec7e395705966e5",
+      "source": "local",
+      "createdAt": "2026-10-07T02:00:00.000Z",
+      "description": "장면 편집을 위해 AI로 제작한 가상 공간·제품 이미지입니다.",
+      "credit": "OpenAI ImageGen · 생성 이미지",
+      "width": 1672,
+      "height": 941
+    }
+  },
+  "evening": {
+    "path": "/studio-assets/room-evening.png",
+    "asset": {
+      "id": "asset-f196fe910a7953eb997bf07453c59a56d45f1d930162a39448332400f626f69d",
+      "name": "푸른 의자의 저녁",
+      "kind": "image",
+      "mime": "image/png",
+      "bytes": 2274123,
+      "sha256": "f196fe910a7953eb997bf07453c59a56d45f1d930162a39448332400f626f69d",
+      "source": "local",
+      "createdAt": "2026-10-07T02:00:00.000Z",
+      "description": "장면 편집을 위해 AI로 제작한 가상 공간·제품 이미지입니다.",
+      "credit": "OpenAI ImageGen · 생성 이미지",
+      "width": 1672,
+      "height": 941
+    }
+  },
+  "speaker": {
+    "path": "/studio-assets/orange-speaker.png",
+    "asset": {
+      "id": "asset-f5c8d72f1f3befe82acc0a31164a00f610db2e5245df9ac611fcdcd01f467870",
+      "name": "오렌지 스피커 스터디",
+      "kind": "image",
+      "mime": "image/png",
+      "bytes": 2054774,
+      "sha256": "f5c8d72f1f3befe82acc0a31164a00f610db2e5245df9ac611fcdcd01f467870",
+      "source": "local",
+      "createdAt": "2026-10-07T02:00:00.000Z",
+      "description": "장면 편집을 위해 AI로 제작한 가상 공간·제품 이미지입니다.",
+      "credit": "OpenAI ImageGen · 생성 이미지",
+      "width": 1448,
+      "height": 1086
+    }
+  },
+  "orbit": {
+    "path": "/studio-assets/orbit-study.webm",
+    "asset": {
+      "id": "asset-d08a4c20501ac9a207538960ce7809aed3654252d461eeea3bd1e8772f6d0eda",
+      "name": "Orbit · 6초 모션 스터디",
+      "kind": "video",
+      "mime": "video/webm",
+      "bytes": 496348,
+      "sha256": "d08a4c20501ac9a207538960ce7809aed3654252d461eeea3bd1e8772f6d0eda",
+      "source": "local",
+      "createdAt": "2026-10-07T02:00:00.000Z",
+      "description": "Prompt Studio에서 직접 제작한 샘플입니다.",
+      "credit": "Prompt Studio · original sample",
+      "width": 960,
+      "height": 540,
+      "duration": 6
+    }
+  },
+  "notes": {
+    "path": "/studio-assets/slow-notes.wav",
+    "asset": {
+      "id": "asset-917cf89aa717d46f1c27668fad71a38353c51f0c44e52ecaed618601ae96aaca",
+      "name": "Slow notes · 12초 사운드 스케치",
+      "kind": "audio",
+      "mime": "audio/wav",
+      "bytes": 576044,
+      "sha256": "917cf89aa717d46f1c27668fad71a38353c51f0c44e52ecaed618601ae96aaca",
+      "source": "local",
+      "createdAt": "2026-10-07T02:00:00.000Z",
+      "description": "Prompt Studio에서 직접 제작한 샘플입니다.",
+      "credit": "Prompt Studio · original sample",
+      "duration": 12
+    }
+  },
+  "captions": {
+    "path": "/studio-assets/orbit-study.vtt",
+    "asset": {
+      "id": "asset-b41445ed1b79f4df266143c2249b3432e9c9f7d9811d873f382448e50ebabd97",
+      "name": "Orbit · 한국어 설명 자막",
+      "kind": "captions",
+      "mime": "text/vtt",
+      "bytes": 134,
+      "sha256": "b41445ed1b79f4df266143c2249b3432e9c9f7d9811d873f382448e50ebabd97",
+      "source": "local",
+      "createdAt": "2026-10-07T02:00:00.000Z",
+      "description": "Prompt Studio에서 직접 제작한 샘플입니다.",
+      "credit": "Prompt Studio · original sample"
+    }
+  }
+}

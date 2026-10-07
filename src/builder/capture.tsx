@@ -6,6 +6,8 @@ import { Renderer } from "./Renderer";
 import { PREVIEW_CSS } from "./preview-css";
 import { previewWidth, viewportForWidth } from "./viewport";
 import type { Project, Viewport } from "./model";
+import { loadAssetSession, type AssetSession } from "./asset-repository";
+import { assetFontCSS, blobDataURL } from "./asset-fonts";
 
 export async function capturePage(
   project: Project,
@@ -35,13 +37,23 @@ export async function capturePage(
       resolve();
     };
   });
-  frame.srcdoc = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>${PREVIEW_CSS}\n*,*::before,*::after{animation:none!important;transition:none!important}</style></head><body><div id="capture-root"></div></body></html>`;
+  frame.srcdoc = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="/studio-ui.css"><style>${PREVIEW_CSS}\n*,*::before,*::after{animation:none!important;transition:none!important}</style></head><body><div id="capture-root"></div></body></html>`;
   document.body.appendChild(frame);
   let root: ReturnType<typeof createRoot> | undefined;
+  let assets: AssetSession | undefined;
   const abort = new AbortController();
   const totalTimer = setTimeout(() => abort.abort(), 30000);
   try {
     await loaded;
+    assets = await loadAssetSession(project.assets);
+    const fontData: Record<string, string> = {};
+    for (const id of [project.theme.bodyFontAsset, project.theme.headingFontAsset]) {
+      if (!id || fontData[id]) continue;
+      if (!assets.urls[id]) throw Error("사용 중인 폰트 원본이 없습니다. 자산에서 같은 파일을 다시 등록하세요.");
+      const response = await fetch(assets.urls[id], { signal: abort.signal });
+      fontData[id] = await blobDataURL(await response.blob());
+    }
+    const fontEmbedCSS = assetFontCSS(project.assets, id => fontData[id]);
     const doc = frame.contentDocument!;
     const mount = doc.getElementById("capture-root")!;
     root = createRoot(mount);
@@ -53,9 +65,13 @@ export async function capturePage(
           viewport={viewportForWidth(width)}
           selected={null}
           preview
+          capture
+          assetSession={assets}
         />,
       ),
     );
+    // Trigger layout before waiting, otherwise newly inserted faces may not yet be requested.
+    void mount.offsetHeight;
     await doc.fonts.ready;
     await Promise.all(
       [...doc.images].map((img) =>
@@ -125,7 +141,8 @@ export async function capturePage(
         width,
         height,
         pixelRatio: 1,
-        skipFonts: true,
+        skipFonts: !fontEmbedCSS,
+        fontEmbedCSS,
         includeQueryParams: true,
         fetchRequestInit: { signal: abort.signal, credentials: "omit" },
         backgroundColor: project.theme[project.theme.mode].background,
@@ -160,6 +177,7 @@ export async function capturePage(
     clearTimeout(totalTimer);
     abort.abort();
     root?.unmount();
+    assets?.dispose();
     frame.remove();
   }
 }

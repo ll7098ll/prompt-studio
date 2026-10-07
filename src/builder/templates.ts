@@ -6,6 +6,7 @@ import {
   uid,
 } from "./model";
 import type { Prop } from "./catalog";
+import { PACK_TEMPLATES, applyPackTemplate } from './pack-templates';
 import {
   applyRecipe,
   EXTRA_TEMPLATES,
@@ -13,6 +14,15 @@ import {
 } from "./template-recipes";
 
 export const TEMPLATES: TemplateInfo[] = [
+  {
+    id: "free-canvas",
+    name: "자유 캔버스",
+    description: "PPT처럼 끌어서 원하는 위치에 배치",
+    tag: "FREE CANVAS",
+    color: "#eeecff",
+    category: "빈 화면",
+    trends: ["자유 배치"],
+  },
   {
     id: "landing",
     name: "브랜드 랜딩",
@@ -41,6 +51,7 @@ export const TEMPLATES: TemplateInfo[] = [
     trends: ["입력과 설정"],
   },
   ...EXTRA_TEMPLATES,
+  ...PACK_TEMPLATES,
   {
     id: "blank",
     name: "빈 페이지",
@@ -70,7 +81,16 @@ export function createTemplate(template: string, id?: string): Project {
     return n;
   }
   if (template === "blank") return p;
-  if (applyRecipe(p, template)) return p;
+  if (template === "free-canvas") {
+    Object.assign(root.layout, {
+      mode: "free",
+      heightMode: "fixed",
+      height: 1200,
+      padding: 0,
+    });
+    return p;
+  }
+  if (applyPackTemplate(p, template) || applyRecipe(p, template)) return p;
   if (template === "dashboard" || template === "settings") {
     p.theme = {
       ...p.theme,
@@ -181,6 +201,7 @@ export function appendPage(p: Project, template: string): Project {
   return {
     ...p,
     nodes: { ...p.nodes, ...source.nodes },
+    assets: { ...p.assets, ...source.assets },
     pages: [
       ...p.pages,
       { ...page, id: uid("page"), name: source.name, slug: `/page-${index}` },

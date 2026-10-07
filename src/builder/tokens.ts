@@ -1,4 +1,4 @@
-import { FONT_STACKS, type Colors, type Theme } from "./theme";
+import { themeVariables, type Colors, type Theme } from "./theme";
 
 // Export uses the published DTCG 2025.10 format and color modules.
 // https://www.designtokens.org/tr/2025.10/format/
@@ -11,6 +11,7 @@ const alias = ($type: string, path: string) => ({ $type, $value: `{${path}}` });
 const colorId = (hex: string) => `c_${hex.slice(1).toLowerCase()}`;
 
 export function themeTokens(theme: Theme) {
+  const fontFamily = (variable: string) => themeVariables(theme)[variable].split(",").map(font => font.trim().replaceAll('"', ""));
   const allColors = [
     ...new Set(
       [...Object.values(theme.light), ...Object.values(theme.dark)].map((c) =>
@@ -35,6 +36,9 @@ export function themeTokens(theme: Theme) {
         currentMode: theme.mode,
         themeName: theme.name,
         density: theme.density,
+        packSources: theme.packSources,
+        surface: theme.surface,
+        motion: theme.motion,
       },
     },
     primitive: {
@@ -58,12 +62,18 @@ export function themeTokens(theme: Theme) {
       spacing: dimension(24 * theme.density),
       bodyFont: {
         $type: "fontFamily",
-        $value: FONT_STACKS[theme.font]
-          .split(",")
-          .map((font) => font.trim().replaceAll('"', "")),
+        $value: fontFamily("--ui-font"),
       },
-      bodySize: dimension(14),
-      bodyLineHeight: { $type: "number", $value: 1.65 },
+      headingFont: { $type: "fontFamily", $value: fontFamily("--ui-heading-font") },
+      numericFont: { $type: "fontFamily", $value: fontFamily("--ui-numeric-font") },
+      bodySize: dimension(theme.typography?.bodySize ?? 14),
+      bodyLineHeight: { $type: "number", $value: theme.typography?.bodyLineHeight ?? 1.65 },
+      ...(theme.typography ? {
+        headingMin: dimension(theme.typography.headingMin), headingMax: dimension(theme.typography.headingMax),
+        headingWeight: { $type: "fontWeight", $value: theme.typography.headingWeight },
+        headingLineHeight: { $type: "number", $value: theme.typography.headingLineHeight },
+        headingTracking: { $type: "number", $value: theme.typography.headingTracking, $description: "Relative to heading font size (em)." },
+      } : {}),
     },
     modes: {
       light: { color: modeColors("light") },
@@ -79,6 +89,8 @@ export function themeTokens(theme: Theme) {
       radius: alias("dimension", "primitive.radius"),
       spacing: alias("dimension", "primitive.spacing"),
       bodyFont: alias("fontFamily", "primitive.bodyFont"),
+      headingFont: alias("fontFamily", "primitive.headingFont"),
+      numericFont: alias("fontFamily", "primitive.numericFont"),
       bodySize: alias("dimension", "primitive.bodySize"),
       bodyLineHeight: alias("number", "primitive.bodyLineHeight"),
     },

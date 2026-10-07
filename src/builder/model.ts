@@ -1,6 +1,15 @@
 import { z } from "zod";
+import { motionSettingsSchema } from "./motion-settings";
 import { DEFINITIONS } from "./catalog";
+import { resolveInitialReferences, remapNodeReferences } from "./content-references";
 import { THEME_PRESETS } from "./theme";
+import { designFields, DESIGN_DEFAULTS } from "./design-schema";
+import { DESIGN_FAMILIES, MOTIONS } from "./visual-presets";
+import { assetIdSchema, assetsSchema, referencedAssetId } from "./asset-model";
+import { typographySchema, surfaceSchema, themeMotionSchema, packSourcesSchema } from "./design-pack-schema";
+import { partFields, partAttributesSchema } from "./part-schema";
+
+export const CURRENT_SCHEMA_VERSION = 5;
 
 const safeId = z
   .string()
@@ -23,7 +32,7 @@ const colors = z
     (c) => Object.values(c).every((value) => /^#[0-9a-f]{6}$/i.test(value)),
     "색상은 #RRGGBB 형식이어야 합니다.",
   );
-const layoutSchema = z.strictObject({
+const legacyLayoutSchema = z.strictObject({
   direction: z.enum(["row", "column"]),
   columns: z.number().int().min(1).max(6),
   gap: z.number().min(0).max(160),
@@ -40,9 +49,24 @@ const layoutSchema = z.strictObject({
   margin: z.number().min(0).max(240).optional(),
   minHeight: z.number().min(0).max(2000).optional(),
 });
+const layoutSchema = legacyLayoutSchema.extend({
+  ...designFields,
+  width: z.number().min(1).max(20000).optional(),
+});
 const overrideSchema = layoutSchema
   .partial()
   .extend({ hidden: z.boolean().optional() });
+const partLayoutSchema = layoutSchema.partial().extend(partFields);
+const partSchema = z.strictObject({
+  attributes: partAttributesSchema.optional(),
+  text: z.string().max(20000).optional(),
+  label: z.string().max(120).optional(),
+  layout: partLayoutSchema,
+  responsive: z.strictObject({
+    tablet: partLayoutSchema.optional(),
+    desktop: partLayoutSchema.optional(),
+  }),
+});
 const nodeSchema = z.strictObject({
   id: safeId,
   component: z
@@ -64,9 +88,32 @@ const nodeSchema = z.strictObject({
   }),
   hidden: z.boolean(),
   locked: z.boolean(),
+  parts: z
+    .record(
+      z
+        .string()
+        .regex(/^(?:p(?:\.\d{1,4}){1,24}|slot\.[a-zA-Z0-9_.-]{1,100})$/),
+      partSchema,
+    )
+    .refine((parts) => Object.keys(parts).length <= 5000, "한 컴포넌트의 개별 부분 수정은 5,000개까지 저장할 수 있습니다.")
+    .optional(),
+  appearance: z
+    .strictObject({
+      renderer: z.enum(["classic", "shadcn"]).optional(),
+      family: z
+        .enum(["legacy", ...DESIGN_FAMILIES.map((f) => f.id)])
+        .optional(),
+      motion: z.enum(MOTIONS.map((m) => m[0])).optional(),
+      motionSettings: motionSettingsSchema.optional(),
+      blockPreset: z
+        .string()
+        .regex(/^[a-z0-9-]{1,80}$/)
+        .optional(),
+    })
+    .optional(),
 });
-export const documentSchema = z.strictObject({
-  schemaVersion: z.literal(2),
+const v4DocumentSchema = z.strictObject({
+  schemaVersion: z.literal(4),
   id: safeId,
   name: z.string().min(1).max(100),
   revision: z.number().int().nonnegative(),
@@ -96,11 +143,53 @@ export const documentSchema = z.strictObject({
     font: z.enum(["sans", "serif", "mono"]),
   }),
 });
+export const documentSchema = v4DocumentSchema.extend({
+  schemaVersion: z.literal(CURRENT_SCHEMA_VERSION),
+  assets: assetsSchema,
+  nodes: z.record(safeId, nodeSchema.extend({
+    content: z.record(safeId, z.array(z.strictObject({ id: safeId, values: z.record(safeId, z.union([z.string().max(20000), z.number().finite(), z.boolean()])) })).max(100)).optional(),
+  })),
+  theme: v4DocumentSchema.shape.theme.extend({
+    headingFont: z.enum(["sans", "serif", "mono"]).optional(),
+    bodyFontAsset: assetIdSchema.optional(),
+    headingFontAsset: assetIdSchema.optional(),
+    typography: typographySchema.optional(),
+    surface: surfaceSchema.optional(),
+    motion: themeMotionSchema.optional(),
+    packSources: packSourcesSchema.optional(),
+  }),
+});
+const v3DocumentSchema = v4DocumentSchema.extend({
+  schemaVersion: z.literal(3),
+  nodes: z.record(safeId, nodeSchema.omit({ appearance: true })),
+});
+const legacyDocumentSchema = v4DocumentSchema.extend({
+  schemaVersion: z.literal(2),
+  nodes: z.record(
+    safeId,
+    nodeSchema.extend({
+      layout: legacyLayoutSchema,
+      responsive: z.strictObject({
+        tablet: legacyLayoutSchema
+          .partial()
+          .extend({ hidden: z.boolean().optional() })
+          .optional(),
+        desktop: legacyLayoutSchema
+          .partial()
+          .extend({ hidden: z.boolean().optional() })
+          .optional(),
+      }),
+    }),
+  ),
+});
 export type Project = z.infer<typeof documentSchema>;
 export type Node = Project["nodes"][string];
 export type Layout = Node["layout"];
+export type Part = z.infer<typeof partSchema>;
+export type PartLayout = z.infer<typeof partLayoutSchema>;
 export type Viewport = "mobile" | "tablet" | "desktop";
 export const DEFAULT_LAYOUT: Required<Layout> = {
+  ...DESIGN_DEFAULTS,
   direction: "column",
   columns: 1,
   gap: 24,
@@ -121,15 +210,29 @@ export function uid(prefix = "node"): string {
 export function createNode(component: string, id = uid()): Node {
   const def = DEFINITIONS[component];
   if (!def) throw new Error("지원하지 않는 컴포넌트입니다.");
-  return {
+  const node: Node = {
     id,
     component,
     name: def.name,
     children: [],
     props: { ...def.defaults },
+    ...(def.collections && !Object.values(def.collections).some(c => c.legacy) ? { content: Object.fromEntries(Object.entries(def.collections).map(([key, c]) => [key, (c.initial ?? []).map(values => ({ id: uid("item"), values: { ...c.defaults, ...values } }))])) } : {}),
     layout: {
       ...DEFAULT_LAYOUT,
       padding: component === "section" ? 48 : component === "card" ? 24 : 0,
+      ...(["frame", "group"].includes(component)
+        ? { mode: "free" as const, heightMode: "fixed" as const, height: 480 }
+        : {}),
+      ...(component === "shape"
+        ? {
+            widthMode: "fixed" as const,
+            width: 160,
+            heightMode: "fixed" as const,
+            height: 120,
+            fillColor: "theme:primary",
+          }
+        : {}),
+      ...def.initialLayout,
     },
     responsive:
       component === "grid"
@@ -138,9 +241,39 @@ export function createNode(component: string, id = uid()): Node {
     hidden: false,
     locked: false,
   };
+  resolveInitialReferences(node, def);
+  return node;
 }
 export function parseProject(value: unknown): Project {
-  const result = documentSchema.safeParse(value);
+  let source = value;
+  if (
+    value &&
+    typeof value === "object" &&
+    "schemaVersion" in value &&
+    value.schemaVersion === 2
+  ) {
+    const legacy = legacyDocumentSchema.safeParse(value);
+    if (!legacy.success)
+      throw new Error("이전 프로젝트의 구조나 속성 값이 올바르지 않습니다.");
+    source = { ...legacy.data, schemaVersion: 4 };
+  }
+  if (
+    source &&
+    typeof source === "object" &&
+    "schemaVersion" in source &&
+    source.schemaVersion === 3
+  ) {
+    const legacy = v3DocumentSchema.safeParse(source);
+    if (!legacy.success)
+      throw new Error("이전 프로젝트의 구조나 속성 값이 올바르지 않습니다.");
+    source = { ...legacy.data, schemaVersion: 4 };
+  }
+  if (source && typeof source === "object" && "schemaVersion" in source && source.schemaVersion === 4) {
+    const previous = v4DocumentSchema.safeParse(source);
+    if (!previous.success) throw new Error("이전 프로젝트의 구조나 속성 값이 올바르지 않습니다.");
+    source = { ...previous.data, schemaVersion: CURRENT_SCHEMA_VERSION, assets: {} };
+  }
+  const result = documentSchema.safeParse(source);
   if (!result.success) {
     if (result.error.issues.some((issue) => issue.path.includes("slug")))
       throw new Error(
@@ -168,6 +301,27 @@ export function parseProject(value: unknown): Project {
     if (node.children.length && !DEFINITIONS[node.component].container)
       throw new Error("이 요소에는 자식을 넣을 수 없습니다.");
     const def = DEFINITIONS[node.component];
+    for (const part of Object.values(node.parts ?? {})) {
+      const id = referencedAssetId(part.attributes?.src ?? "");
+      if (id && p.assets[id]?.kind !== "image") throw Error("내부 이미지에 연결된 자산을 찾을 수 없습니다.");
+    }
+    for (const [key, items] of Object.entries(node.content ?? {})) {
+      const collection = def.collections?.[key];
+      if (!collection) throw Error(`${node.name}의 항목 목록이 올바르지 않습니다.`);
+      if (new Set(items.map(item => item.id)).size !== items.length) throw Error("항목 ID가 중복됩니다.");
+      for (const item of items) {
+        if (Object.keys(item.values).length !== Object.keys(collection.defaults).length) throw Error("항목에 필요한 값이 없습니다.");
+        for (const [fieldKey, value] of Object.entries(item.values)) {
+          if (!Object.hasOwn(collection.defaults, fieldKey) || typeof value !== typeof collection.defaults[fieldKey]) throw Error("항목의 값이 올바르지 않습니다.");
+          const field = collection.fields.find(f => f.key === fieldKey);
+          if ((field?.type === "node-ref" || field?.type === "item-ref") && value !== "" && !safeId.safeParse(value).success) throw Error("항목의 연결 ID가 올바르지 않습니다.");
+          if (field?.options && !field.options.includes(String(value))) throw Error("항목의 선택 값이 올바르지 않습니다.");
+          if (field?.type === "number" && (Number(value) < (field.min ?? -Infinity) || Number(value) > (field.max ?? Infinity))) throw Error("항목의 값이 허용 범위를 벗어났습니다.");
+          const assetId = field?.type === "asset" ? referencedAssetId(String(value)) : undefined;
+          if (assetId && (!p.assets[assetId] || !field?.assetKinds?.includes(p.assets[assetId].kind))) throw Error("항목의 자산이 없거나 종류가 다릅니다.");
+        }
+      }
+    }
     for (const [key, value] of Object.entries(node.props)) {
       if (
         !Object.hasOwn(def.defaults, key) ||
@@ -175,6 +329,9 @@ export function parseProject(value: unknown): Project {
       )
         throw new Error(`${node.name}의 속성이 올바르지 않습니다.`);
       const field = def.fields.find((f) => f.key === key);
+      const assetId = typeof value === "string" && field?.type === "asset" ? referencedAssetId(value) : undefined;
+      if (assetId && (!p.assets[assetId] || !field?.assetKinds?.includes(p.assets[assetId].kind)))
+        throw new Error(`${node.name}에 연결된 자산이 없거나 파일 종류가 다릅니다.`);
       if (field?.options && !field.options.includes(String(value)))
         throw new Error(`${node.name}의 선택 값이 올바르지 않습니다.`);
       if (
@@ -188,7 +345,7 @@ export function parseProject(value: unknown): Project {
         );
     }
     for (const key of Object.keys(def.defaults))
-      if (!Object.hasOwn(node.props, key))
+      if (!Object.hasOwn(node.props, key) && !def.optionalProps?.includes(key))
         throw new Error(`${node.name}에 필요한 속성이 없습니다.`);
     seen.add(id);
     node.children.forEach((child) => visit(child, depth + 1));
@@ -202,6 +359,8 @@ export function parseProject(value: unknown): Project {
   }
   if (seen.size !== ids.length)
     throw new Error("페이지에 속하지 않은 요소가 있습니다.");
+  for (const id of [p.theme.bodyFontAsset, p.theme.headingFontAsset])
+    if (id && p.assets[id]?.kind !== "font") throw new Error("테마에 연결된 서체 자산을 찾을 수 없습니다.");
   return p;
 }
 export function parseProjectText(text: string): Project {
@@ -293,12 +452,14 @@ export function duplicateNode(
     descendants(p, id).map((old) => [old, uid()]),
   );
   const project = editProject(p, (next) => {
-    for (const old of Object.keys(mapping))
+    for (const old of Object.keys(mapping)) {
       next.nodes[mapping[old]] = {
         ...structuredClone(p.nodes[old]),
         id: mapping[old],
         children: p.nodes[old].children.map((child) => mapping[child]),
       };
+      remapNodeReferences(next.nodes[mapping[old]], DEFINITIONS[p.nodes[old].component], mapping);
+    }
     next.nodes[mapping[id]].name = `${p.nodes[id].name} 사본`.slice(0, 100);
     next.nodes[parent].children.splice(
       next.nodes[parent].children.indexOf(id) + 1,
@@ -311,7 +472,8 @@ export function duplicateNode(
 export function blankProject(id = uid("project")): Project {
   const root = createNode("page");
   return {
-    schemaVersion: 2,
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    assets: {},
     id,
     name: "새 프로젝트",
     revision: 0,
