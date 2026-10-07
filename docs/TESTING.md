@@ -1,8 +1,6 @@
-# 테스트와 검증 상태
+# 테스트와 검증
 
 ## 기본 검사
-
-깨끗한 설치에서 다음 순서로 실행합니다. 빌드가 Next 라우트 타입을 생성하므로 초기 타입 검사는 빌드 뒤에 둡니다.
 
 ```sh
 npm ci
@@ -12,88 +10,69 @@ npm run build
 npm run typecheck
 ```
 
-전체 `npm run lint`는 보존된 기존 데모도 포함하며 별도 정리가 남아 있습니다. 현재 편집기만의 검사를 전체 저장소 lint 통과로 표현하지 않습니다.
+깨끗한 설치에서는 빌드 후 타입을 검사합니다. 전체 `lint`는 기존 데모까지 포함합니다. 현재 CI는 위 기본 검사와 GitHub 패키지 생성을 실행하며 브라우저 전체 회귀와 성능 측정은 별도 실행합니다.
 
 ## 브라우저 검사
 
-기본 구성은 **설치된 Microsoft Edge + Playwright Firefox·WebKit**입니다.
+기능 검사 설정은 `playwright.config.ts`에 있습니다. Chromium 프로젝트는 `channel: msedge`로 설치된 Microsoft Edge를 사용합니다. Firefox·WebKit 엔진을 준비하세요.
 
 ```sh
 npx playwright install firefox webkit
 ```
 
-Windows PowerShell:
+Edge가 없다면 `npx playwright install msedge`로 설치하거나 검사 설정의 channel과 엔진을 실행 환경에 맞춰 조정합니다. Linux에서 엔진에 필요한 시스템 패키지는 Playwright의 `--with-deps` 옵션으로 설치할 수 있습니다.
+
+개발 서버 검사:
+
+```sh
+npm run test:e2e
+```
+
+정적 산출물 검사, Windows PowerShell:
 
 ```powershell
 npm run build
 $env:STUDIO_TEST_STATIC = '1'
 npm run test:e2e
-npm run test:performance
+Remove-Item Env:STUDIO_TEST_STATIC
 ```
 
-Linux/macOS:
+macOS/Linux:
 
 ```sh
 npm run build
 STUDIO_TEST_STATIC=1 npm run test:e2e
-STUDIO_TEST_STATIC=1 npm run test:performance
 ```
 
-Edge가 없으면 `npx playwright install chromium`으로 Chromium을 준비한 뒤 `playwright.config.ts`의 `channel: "msedge"`를 제거해 기본 Chromium을 사용하도록 변경합니다. 썸네일·프리셋 감사 스크립트도 같은 channel을 사용하므로 해당 launch 설정을 함께 바꿉니다. 환경별 실행 여부를 검증 결과에 기록하세요.
+서버 주소는 기본 `127.0.0.1:3200`이며 필요하면 `PORT`를 지정합니다. 기존 서버를 재사용하므로 해당 포트가 검사할 빌드를 서비스하는지 확인합니다.
 
-`STUDIO_TEST_STATIC`이 없으면 Playwright는 개발 서버를 사용합니다. 설정은 3200 포트의 기존 서버를 재사용할 수 있으므로 정적 배포를 검사할 때 다른 프로젝트나 개발 서버가 그 포트를 사용하지 않는지 확인하세요.
+## 검사 범위
 
-## 썸네일과 프리셋
+| 영역        | 대표 확인 항목                                           |
+| ----------- | -------------------------------------------------------- |
+| 문서        | 트리 검증, 잘못된 입력, v2/v3/v4 변환, 복제와 참조 유지  |
+| 편집        | 드래그, 내부 부분, 한글 입력, 반응형, Undo/Redo          |
+| 저장        | 새로고침, 두 탭 충돌, 탭별 복구, 손상 기록 격리          |
+| 자산        | 파일 시그니처, 교체, 원본 해시, 임시 URL 해제, ZIP 복원  |
+| 콘텐츠      | 단계 폼, 챕터 포커스, 서식 본문, 항목 순서와 외형 유지   |
+| 미디어·모션 | 컨트롤, 정지 상태 캡처, 재생 조건, 움직임 감소, 포커스   |
+| 전달·공유   | ZIP 내부 자료, 캡처 폭, 원본 없는 브라우저에서 공유 복제 |
+| 접근성      | 키보드·포커스와 axe 자동 검사                            |
 
-별도 터미널에서 `npm start`로 빌드 결과를 제공한 뒤 실행합니다.
+`tests/e2e/`에 기능별 검사가 있고 `tests/fixtures/`는 실제 import·호환성 검사용 자료입니다. 테스트 결과 폴더와 개인 복구 파일은 업로드 패키지에 넣지 않습니다.
 
-```sh
-npx tsx scripts/template-previews.ts
-npx tsx scripts/audit-templates.ts
-npm run build
+## 성능 검사
+
+```powershell
+$env:STUDIO_TEST_STATIC = '1'
+npm run test:performance
+Remove-Item Env:STUDIO_TEST_STATIC
 ```
 
-썸네일은 `public/template-previews/`에 저장합니다. 새 이미지를 배포하려면 다시 빌드합니다. 감사 결과는 `artifacts/`, 실패 자료는 `test-results/`에 생성되며 Git 추적 대상에서 제외됩니다.
+성능 설정은 작업자 1개와 trace 비활성화를 사용합니다. 다른 브라우저 검사와 동시에 실행하지 않습니다. 입력 지연과 모션 프레임 간격은 서로 다른 지표입니다. 모션 측정 스크립트는 `PORT` 기본값이 3201이므로 해당 포트의 정적 서버를 준비한 후 `npx tsx scripts/measure-motion.ts`를 실행합니다.
 
-## 기존 릴리스의 검증 기록
+## 기록을 읽는 기준
 
-### 업로드 패키지 자체 확인
+이 문서 정리 작업에서 직접 실행한 검사는 [검증 결과](VALIDATION.md)에 기록합니다. 기존 작업의 검사·성능·배포 기록은 [확장 실행 기록](EXPANSION_EXECUTION.md)과 [구현 상태](IMPLEMENTATION_STATUS.md)에 있습니다. 과거 검사 결과를 이번 패키지의 재검사 결과로 표시하지 않습니다.
 
-2026-10-02 패키지의 별도 복사본에서 `npm ci`로 새로 설치한 뒤 단위 검사 15/15, `lint:studio`, 정적 빌드, `typecheck`가 모두 통과했습니다. 문서의 상대 링크 48개와 GitHub workflow YAML 구문을 검사했습니다. 앱 소스·원본 설정·lockfile은 원본과 바이트 단위로 같으며 운영 계정 식별자와 로컬 생성 디렉터리를 제외했는지 점검했습니다. GitHub 호스팅 러너에서 CI를 실행한 것은 아닙니다.
-
-### 원본 앱의 브라우저 검사
-
-2026-10-02 / Windows / Node.js 24.14.0 기준입니다. 아래 브라우저 결과는 이 패키지와 동일한 앱 소스의 원본 릴리스에서 수행한 기록이며 새 GitHub Actions 실행 결과가 아닙니다.
-
-| 항목                    | 결과                                                        |
-| ----------------------- | ----------------------------------------------------------- |
-| 단위 검사               | 15/15 통과                                                  |
-| 기능 시나리오           | 엔진당 24개, 총 72개를 전체 및 변경 영향 범위 재검사로 확인 |
-| 마지막 영향 범위 재검사 | 라이브러리·편집·저장·공유·내보내기 45/45 통과               |
-| 프리셋                  | 15종 × 데스크톱·모바일 30개 화면, 가로 넘침 없음            |
-| axe 검사                | 위 프리셋 30개 화면 WCAG 2 A/AA 및 2.1 AA 위반 0건          |
-| 기타                    | 현재 편집기 lint, TypeScript, 정적 빌드 통과                |
-
-검사에는 중첩 팝업 포커스, 실제 데모 동작, 사용자 지정 폭 PNG, Flex/Grid 배치, 대형 문서 끝 요소 편집·실행 취소, 재열기, 탭 충돌, 손상 자료 격리, 두 저장소 실패 시 JSON 백업을 포함합니다.
-
-## 성능
-
-200개 콘텐츠 요소(199개 텍스트 + 50행 표), 워밍업 5회 뒤 한국어 속성 변경 20회를 측정했습니다. 1600×1000 환경에서 단일 작업자로 trace·screenshot을 끄고 검사합니다. 입력 이벤트부터 DOM 반영 후 다음 animation frame까지의 지연이며 실제 모니터 픽셀 표시 시간을 직접 측정하지 않습니다.
-
-| 엔진                   | DPR | 마지막 p95 | 최대   | p95 100ms 미만 |
-| ---------------------- | --- | ---------- | ------ | -------------- |
-| Edge / Chromium 153    | 1   | 61.7ms     | 65.3ms | 통과           |
-| Firefox 155            | 1   | 95ms       | 102ms  | 통과           |
-| Playwright WebKit 26.6 | 2   | 240ms      | 286ms  | 실패           |
-
-WebKit은 직전 실행에서 102ms, 마지막 실행에서 240ms로 편차가 컸습니다. 원인이 확정되지 않았으며 목표를 완화하지 않았습니다. 이 검사는 다른 부하·기기·실제 Safari에서의 성능 보장이 아닙니다.
-
-## 자동화 범위
-
-`.github/workflows/ci.yml`은 push·pull request·수동 실행에서 npm 설치, 단위 검사, 현재 편집기 lint, 정적 빌드, 타입 검사를 수행하도록 구성했습니다. GitHub 원격 실행은 저장소에 업로드한 뒤 확인해야 합니다.
-
-브라우저·실기기·성능·사용성 검사는 이 기본 CI에 포함하지 않았습니다. [checkout](https://github.com/actions/checkout)과 [setup-node](https://github.com/actions/setup-node)의 공식 사용법을 기준으로 구성했습니다.
-
-## 미검증 범위
-
-실제 macOS/iOS Safari·Android 기기, OS 한국어 IME 후보 입력, 외부 AI 독립 재현, 신규 사용자의 사용성 관찰과 장기간 운영 복구는 미검증입니다. axe의 0건 결과는 완전한 접근성 인증이 아닙니다.
+이전 최신 기록의 단위 51개와 브라우저 261개는 전체 실행 후 영향 범위 재검사를 합친 확인 범위입니다. 단일 최종 261/261 실행 기록은 아닙니다. Windows Playwright WebKit의 WAV/WebM 코덱 대체 검사도 실제 Safari 재생 성공과 구분합니다. 실기기·외부 AI의 독립 재현은 별도 검증 항목입니다.

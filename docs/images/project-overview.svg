@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Prompt Studio — from idea to implementation brief</title>
+  <desc id="desc">Compose UI, refine the design, preview responsive screens, and export the AI handoff. Projects stay in your browser.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f8f7ff"/><stop offset="1" stop-color="#eef4ef"/></linearGradient>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto"><path d="M0 0L8 4L0 8" fill="none" stroke="#8b82bc" stroke-width="1.5"/></marker>
+  </defs>
+  <rect width="1200" height="360" rx="24" fill="url(#bg)"/>
+  <g font-family="Arial, sans-serif">
+    <text x="42" y="57" font-size="13" font-weight="700" letter-spacing="3" fill="#7160be">PROMPT STUDIO</text>
+    <text x="42" y="106" font-size="34" font-weight="700" fill="#252432">From idea to implementation brief.</text>
+    <text x="42" y="139" font-size="16" fill="#615c71">Visual UI composition · Browser storage · Structured AI handoff</text>
+    <g fill="#fff" stroke="#ded9ee"><rect x="42" y="182" width="250" height="125" rx="14"/><rect x="330" y="182" width="250" height="125" rx="14"/><rect x="618" y="182" width="250" height="125" rx="14"/><rect x="906" y="182" width="250" height="125" rx="14"/></g>
+    <g fill="none" stroke="#8b82bc" stroke-width="2" marker-end="url(#arrow)"><path d="M300 244h22"/><path d="M588 244h22"/><path d="M876 244h22"/></g>
+    <g fill="#7160be" font-size="12" font-weight="700" letter-spacing="2"><text x="64" y="213">01 / COMPOSE</text><text x="352" y="213">02 / REFINE</text><text x="640" y="213">03 / PREVIEW</text><text x="928" y="213">04 / HANDOFF</text></g>
+    <g fill="#252432" font-size="21" font-weight="700"><text x="64" y="246">Build your screen</text><text x="352" y="246">Make it yours</text><text x="640" y="246">Check every size</text><text x="928" y="246">Give AI the details</text></g>
+    <g fill="#615c71" font-size="13"><text x="64" y="274">Components · scenes · free layout</text><text x="352" y="274">Themes · content · media · motion</text><text x="640" y="274">Responsive screens · interactions</text><text x="928" y="274">Prompt · spec · tokens · images</text></g>
+    <text x="42" y="339" font-size="12" fill="#615c71">No account or API key required. Back up your projects with assets included.</text>
+  </g>
+</svg>

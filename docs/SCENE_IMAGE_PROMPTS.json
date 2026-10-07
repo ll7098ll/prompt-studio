@@ -1,0 +1,20 @@
+{
+  "mode": "built-in image_gen",
+  "assets": [
+    {
+      "role": "room-before",
+      "path": "public/studio-assets/room-afternoon.png",
+      "prompt": "Use case: photorealistic-natural\nAsset type: original editorial room scene for a design website and a matched before/after pair.\nPrimary request: high-end editorial architectural photograph of a quiet contemporary room in a sculptural concrete building, ivory plaster, one rust-orange lounge chair, tall window, hard afternoon light and a plant shadow.\nStyle/medium: convincing architectural photography with considered real material detail.\nComposition/framing: wide 16:9 image, balanced spacious full-room framing, camera level, architecture clearly legible.\nLighting/mood: hard afternoon sun through the tall window creates a beautiful plant shadow, quiet contemplative mood.\nMaterials/textures: subtle ivory plaster texture, sculptural concrete architecture, tactile rust-orange chair upholstery.\nConstraints: original scene, no people, no text, no logo, no watermark, no interface. Exactly one image."
+    },
+    {
+      "role": "room-after",
+      "path": "public/studio-assets/room-evening.png",
+      "prompt": "Use case: precise-object-edit\nAsset type: matched after-image for a before/after interior design comparison.\nInput image 1: edit target. Use this exact photograph, keeping the camera position, lens, framing, image dimensions, architecture, tall window and mullions, sculptural concrete arch, stairs, walls, floor, rug, potted tree and wall artwork fixed.\nPrimary request: redesign the room with a saturated deep cobalt upholstered lounge chair in the exact position, shape and scale of the existing rust-orange chair. Replace its adjacent small pale stone side table with a low dark walnut side table in the same location. Add a neatly folded vivid orange wool throw over the chair's arm.\nLighting/mood: change the hard afternoon sunshine to warm indirect evening illumination, physically believable softly glowing interior lighting and cooler fading daylight beyond the windows.\nComposition/framing: preserve the identical 16:9 composition and pixel alignment of architecture for the comparison.\nMaterials/textures: richly tactile cobalt upholstery, real dark walnut wood grain, vivid orange wool fibers; retain real plaster, concrete and floor material detail.\nConstraints: change only the requested chair color/material, side table, added folded throw and lighting; keep all other geometry and objects unchanged. No people, no text, no logo, no UI, no watermark. Exactly one image."
+    },
+    {
+      "role": "speaker",
+      "path": "public/studio-assets/orange-speaker.png",
+      "prompt": "Use case: product-mockup\nAsset type: original studio product photograph for a design website scene example.\nPrimary request: original unbranded sculptural orange portable speaker with an oval rectangular body, fine perforated front grille, small dark control dial on its right face.\nScene/backdrop: speaker rests on a deep midnight blue plinth with a clean studio backdrop.\nStyle/medium: premium studio product photography, physically believable materials, precise tactile details.\nComposition/framing: clean 4:3 image, three-quarter view showing the front and right face, generous margins around the speaker.\nLighting/mood: directional soft light with clear dimensional form and controlled soft shadows.\nConstraints: no text, no branding, no logo, no watermark, no UI, no extra products. Exactly one image."
+    }
+  ]
+}

@@ -1,75 +1,131 @@
 # 아키텍처
 
-## 실행 구조
+현재 편집기는 `src/builder/`에 있으며 Next.js App Router로 정적 HTML·JS·CSS를 출력합니다. 저장·편집·캡처·공유는 브라우저에서 실행됩니다. 문서 형식은 v5입니다.
 
-Next.js App Router를 정적 내보내기 모드로 빌드합니다. 현재 편집·저장·공유 해석·캡처는 브라우저에서 실행합니다. 서버 API, 사용자 계정, 프로젝트 클라우드 DB는 없습니다.
+## 전체 구조
 
 ```mermaid
-flowchart LR
-  Templates[프리셋 / JSON] --> Model[검증된 프로젝트 문서]
-  Editor[편집 명령] --> Model
-  Model --> Renderer[공통 React 렌더러]
-  Renderer --> Preview[iframe 미리보기]
-  Renderer --> Capture[PNG 캡처]
-  Model --> Storage[IndexedDB / 복구 자료]
-  Model --> Share[압축 URL 스냅샷]
-  Model --> Handoff[프롬프트 / 명세 / 토큰]
-  Capture --> Bundle[AI 전달 ZIP]
-  Handoff --> Bundle
+flowchart TB
+    Home["/ 및 /studio/ · Workspace"] --> Editor["Editor · useEditor"]
+    Editor --> Commands["model · design-commands · history"]
+    Commands --> Document["검증된 Project v5"]
+    Document --> Storage["repository · recovery"]
+    Storage --> IDB[(IndexedDB: projects / checkpoints / assets)]
+    Storage --> Local[(localStorage: 탭별 복구)]
+    Document --> Renderer["Renderer + theme + preview CSS"]
+    Catalog["catalog · recipes · scene catalog"] --> Commands
+    Catalog --> Renderer
+    Assets["AssetProvider · asset repository"] --> Renderer
+    Renderer --> Edit["CanvasEditor · 이동/선택/내부 편집"]
+    Renderer --> Preview["PreviewFrame · 동작 미리보기"]
+    Renderer --> Capture["capture · PNG"]
+    Document --> Export["export · handoffSpec · tokens"]
+    Capture --> Export
+    Export --> Zip["AI 전달 ZIP"]
+    Document --> Share["share · gzip + URL fragment"]
+    Share --> View["/view/ · SharedViewer"]
+    View --> Renderer
 ```
 
-## 경로와 모듈
+공통 렌더러는 편집·미리보기·캡처·공유에 사용됩니다. AI 명세는 같은 문서의 해석된 레이아웃과 등록부 정의를 사용하고 기준 캡처를 묶습니다. `/legacy/`는 기존 데모입니다.
 
-| 경로                                                                       | 책임                             |
-| -------------------------------------------------------------------------- | -------------------------------- |
-| `src/app/page.tsx`, `studio/page.tsx`                                      | 현재 작업 공간의 진입점          |
-| `src/app/view/page.tsx`                                                    | 읽기 전용 공유 화면              |
-| `src/app/legacy/`                                                          | 기존 앱 보존                     |
-| `src/builder/model.ts`                                                     | Zod 스키마, 구조 검증, 트리 명령 |
-| `catalog.ts`, `extended-catalog.ts`                                        | 컴포넌트 정의·기본값·편집 필드   |
-| `ComponentThumbnail.tsx`, `library.ts`                                     | 작은 예시와 쉬운 설명            |
-| `templates.ts`, `template-recipes.ts`                                      | 편집 가능한 프리셋 생성          |
-| `Renderer.tsx`, `ExtendedContent.tsx`, `preview-css.ts`, `extended-css.ts` | 공통 화면 렌더링                 |
-| `PreviewFrame.tsx`, `viewport.ts`                                          | iframe과 실제 CSS 화면 폭        |
-| `theme.ts`, `tokens.ts`                                                    | 테마 값·CSS 변수·토큰 출력       |
-| `use-editor.ts`                                                            | 편집 상태, 실행 취소, 자동 저장  |
-| `repository.ts`, `recovery.ts`                                             | 저장, revision 충돌, 버전, 복구  |
-| `share.ts`, `SharedViewer.tsx`                                             | 공유 URL 생성·해석               |
-| `export.ts`, `component-specs.ts`, `capture.tsx`                           | AI 전달과 이미지 출력            |
+## 문서 관계
 
-표의 파일명만 있는 항목은 `src/builder/` 기준입니다. `src/components`, `src/data`, `src/lib`, `src/studio`는 기존 데모에서 사용하는 코드를 포함합니다. 현재 편집기 개선은 `src/builder`를 중심으로 합니다.
+```mermaid
+erDiagram
+    PROJECT ||--|{ PAGE : contains
+    PROJECT ||--|{ NODE : stores_by_id
+    PROJECT ||--|| THEME : uses
+    PROJECT ||--o{ ASSET : describes
+    PAGE ||--|| NODE : rootId
+    NODE ||--o{ NODE : children
+    NODE ||--o{ CONTENT_ITEM : content
+    NODE ||--o{ PART_OVERRIDE : parts
+    NODE }o--o{ ASSET : references
+    THEME }o--o{ ASSET : font_references
+    PROJECT {
+        int schemaVersion
+        string id
+        string name
+        int revision
+        string updatedAt
+    }
+    NODE {
+        string id
+        string component
+        object props
+        object layout
+        object responsive
+        object appearance
+    }
+    ASSET {
+        string id
+        string kind
+        string mime
+        int bytes
+        string sha256
+    }
+```
 
-## 문서 모델
+`CONTENT_ITEM`·`PART_OVERRIDE`는 설명용 이름입니다. 실제 JSON은 `node.content`·`node.parts`에 저장합니다. 자산 원본 바이트는 별도 IndexedDB 기록에 있습니다.
 
-현재 파일의 `schemaVersion`은 2입니다.
+- `Project.nodes`는 ID 기반 맵이며 `Page.rootId`부터 트리로 순회합니다.
+- 등록된 컴포넌트·속성과 허용 값만 읽습니다. 순환·중복 부모·누락 자식·고아 요소를 거부합니다.
+- 기본 `layout` 위에 `responsive.tablet`·`responsive.desktop`을 적용합니다.
+- 내부 부분은 `slot.*` 역할 또는 기존 `p.*` DOM 경로로 연결합니다.
+- `appearance`는 렌더러·외형·모션, `content`는 고유 ID가 있는 항목 목록입니다.
+- `schemaVersion`은 파일 형식, `revision`은 편집 revision, 저장 기록의 `version`은 탭 충돌 검사값입니다.
 
-| 필드                               | 의미                                      |
-| ---------------------------------- | ----------------------------------------- |
-| `id / name / revision / updatedAt` | 프로젝트 식별과 저장 충돌 판단            |
-| `pages`                            | 페이지 이름·경로·rootId                   |
-| `nodes`                            | ID로 찾는 중첩 노드와 children 순서       |
-| `theme`                            | 실제 라이트·다크 색상, 서체, 밀도, 모서리 |
+## 저장 흐름
 
-각 노드는 컴포넌트 ID, 원시 속성, 자식 ID, 기본 레이아웃, 화면별 변경값, 숨김·잠금을 가집니다. 현재 props 값은 문자열·유한 숫자·불리언입니다. 임의 객체·배열·JavaScript를 직접 실행하는 속성은 지원하지 않습니다.
+```mermaid
+sequenceDiagram
+    actor User as 사용자
+    participant Editor as useEditor
+    participant Recovery as localStorage 복구
+    participant Repo as repository
+    participant DB as IndexedDB
+    User->>Editor: 문서 편집
+    Editor->>Recovery: 탭별 미저장 문서 기록
+    Note over Editor: 입력이 멈춘 뒤 약 450ms
+    Editor->>Repo: saveProject(project, expectedVersion)
+    Repo->>DB: 트랜잭션에서 현재 version 읽기
+    alt 저장 version 일치
+        Repo->>DB: 문서와 새 version 저장
+        DB-->>Repo: 트랜잭션 완료
+        Repo-->>Editor: 저장 완료
+        Editor->>Recovery: 이 탭의 복구본 정리
+    else 다른 탭이 먼저 저장
+        Repo-->>Editor: SaveConflict
+        Editor-->>User: 최신 버전 / 백업 / 사본 저장
+        Note over Editor,Recovery: 현재 작업과 복구본 보존
+    end
+```
 
-검증은 스키마뿐 아니라 중복 부모, 순환, 잘못된 참조, 깊이와 전체 크기도 다룹니다. 주요 제한은 30페이지, 2,000노드, 깊이 24, 가져오기 3,000,000바이트입니다. 한 노드의 children은 최대 500개입니다.
+v2/v3/v4를 v5로 읽고 처음 저장할 때 원본을 체크포인트로 함께 보존합니다. IndexedDB 이름의 `v2`는 파일 스키마를 뜻하지 않습니다. DB 버전과 파일 스키마는 독립적입니다.
 
-선택적 레이아웃 필드가 없는 기존 schemaVersion 2 파일은 기본값으로 해석합니다. v1 자동 변환이나 알 수 없는 미래 컴포넌트의 부분 복원은 구현되지 않았습니다.
+## 핵심 파일
 
-## 반응형과 테마
+| 영역                 | `src/builder/` 아래 파일                                        |
+| -------------------- | --------------------------------------------------------------- |
+| 작업 공간            | `Workspace.tsx`, `Editor.tsx`                                   |
+| 문서와 검증          | `model.ts`, `design-schema.ts`, `part-schema.ts`                |
+| history·자동 저장    | `use-editor.ts`                                                 |
+| 좌표·드래그·정렬     | `CanvasEditor.tsx`, `geometry.ts`, `design-commands.ts`         |
+| 내부 부분 편집       | `PartsPanel.tsx`, `component-parts.tsx`                         |
+| 등록부·조합 구조     | `catalog.ts`, `*-catalog.ts`, `component-recipes.ts`            |
+| 시작 프로젝트        | `templates.ts`, `template-recipes.ts`, `pack-templates.ts`      |
+| 공통 렌더링          | `Renderer.tsx`, `PreviewFrame.tsx`, `preview-css.ts`            |
+| 테마·팩·토큰         | `theme.ts`, `tokens.ts`, `design-packs.ts`                      |
+| 자산 검사와 보관     | `asset-model.ts`, `asset-repository.ts`, `AssetProvider.tsx`    |
+| 모션                 | `motion-settings.ts`, `motion-runtime.ts`, `MotionPlayback.tsx` |
+| 저장·체크포인트·복구 | `repository.ts`, `recovery.ts`                                  |
+| 자산 ZIP 백업        | `project-archive.ts`                                            |
+| AI 전달·기준 이미지  | `export.ts`, `component-specs.ts`, `capture.tsx`                |
+| URL 스냅샷 공유      | `share.ts`, `SharedViewer.tsx`                                  |
 
-기본 레이아웃 위에 768px 이상에서 tablet, 1024px 이상에서 desktop 변경값을 순서대로 합칩니다. 화면 폭과 프레임 확대 배율을 분리합니다.
+기존 데모의 `src/studio/`, `src/components/`, `src/data/`, `src/lib/`는 보존합니다. shadcn 포털과 반응형 조회는 해당 iframe 문서를 사용하도록 조정했습니다.
 
-테마는 프리셋 이름만 저장하지 않고 실제 값을 보관합니다. 밀도는 gap·padding·margin에 적용됩니다. AI 명세의 `resolvedLayouts`에는 이미 밀도가 반영되어 있으므로 소비자가 다시 곱하면 안 됩니다.
+Tailwind 입력 `src/builder/studio-ui.css`에서 `public/studio-ui.css`를 생성하며 iframe과 PNG가 같은 결과를 읽습니다. 생성 CSS는 Git에 포함하지 않고 `dev`·`build`에서 만듭니다.
 
-## 저장과 공유
-
-IndexedDB 쓰기 시 예상 revision과 실제 revision을 비교해 다른 탭의 변경을 감지합니다. 자동 저장은 수정 후 450ms 지연되며 탭별 복구 자료를 별도로 남깁니다. 복구 자료는 계정 동기화나 서버 백업이 아닙니다.
-
-공유는 검증된 JSON을 gzip 후 base64url로 바꾸어 `#design=v2.` 뒤에 넣습니다. 공유 fragment 최대 길이는 12,000자, 압축 해제 후 최대 크기는 3,000,000바이트입니다. 압축은 암호화가 아닙니다.
-
-## 화면과 캡처 일치
-
-프리셋 큰 미리보기·편집 화면·공유 화면·PNG는 같은 렌더러를 사용합니다. 캡처에서는 편집 테두리와 움직임을 제거합니다. ZIP 기준 이미지는 각 페이지의 세 표준 폭, 단일 PNG는 현재 사용자 지정 폭을 사용할 수 있습니다.
-
-편집 시 변경되지 않은 컴포넌트 본문을 재사용하고 화면 밖의 단순 텍스트에 content-visibility를 적용합니다. 읽기 전용·캡처에는 편집 모드의 이 최적화가 적용되지 않습니다. WebKit 대형 문서 성능은 [남은 과제](TESTING.md)입니다.
+새 모션 효과는 미리보기에서 `motion/mini`를 지연 로딩합니다. 편집·PNG·움직임 감소에서는 원래 콘텐츠를 정지 상태로 사용합니다. [모션 구현 기록](MOTION_RUNTIME.md)에 세부 범위가 있습니다.
